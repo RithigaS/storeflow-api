@@ -42,16 +42,16 @@ public class Order extends BaseAuditEntity {
     public Order() {
     }
 
-    @PrePersist
-    public void prePersist() {
+    @Override
+    protected void beforeCreate() {
         if (referenceNumber == null || referenceNumber.isBlank()) {
             referenceNumber = "ORD-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
         }
         recalculateTotalAmount();
     }
 
-    @PreUpdate
-    public void preUpdate() {
+    @Override
+    protected void beforeUpdate() {
         recalculateTotalAmount();
     }
 
@@ -62,8 +62,8 @@ public class Order extends BaseAuditEntity {
 
     public void recalculateTotalAmount() {
         this.totalAmount = orderItems.stream()
-                .map(OrderItem::getSubtotal)
-                .filter(java.util.Objects::nonNull)
+                .filter(item -> item.getUnitPrice() != null && item.getQuantity() != null)
+                .map(item -> item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 

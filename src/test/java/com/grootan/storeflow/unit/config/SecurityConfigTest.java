@@ -2,29 +2,48 @@ package com.grootan.storeflow.unit.config;
 
 import com.grootan.storeflow.config.SecurityConfig;
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 class SecurityConfigTest {
 
     private final SecurityConfig securityConfig = new SecurityConfig();
 
     @Test
-    void corsConfigurationSource_shouldReturnValidConfiguration() {
+    void shouldCreateCorsConfigurationSource() {
         CorsConfigurationSource source = securityConfig.corsConfigurationSource();
-        assertNotNull(source);
 
-        CorsConfiguration config = source.getCorsConfiguration(null);
+        assertNotNull(source);
+    }
+
+    @Test
+    void shouldReturnExpectedCorsConfiguration() {
+        CorsConfigurationSource source = securityConfig.corsConfigurationSource();
+
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        CorsConfiguration config = source.getCorsConfiguration(request);
+
         assertNotNull(config);
         assertNotNull(config.getAllowedOrigins());
+        assertNotNull(config.getAllowedMethods());
+        assertNotNull(config.getAllowedHeaders());
+        assertEquals(2, config.getAllowedOrigins().size());
         assertTrue(config.getAllowedOrigins().contains("http://localhost:3000"));
         assertTrue(config.getAllowedOrigins().contains("http://localhost:5173"));
-        assertNotNull(config.getAllowedMethods());
+
+        assertEquals(6, config.getAllowedMethods().size());
         assertTrue(config.getAllowedMethods().contains("GET"));
         assertTrue(config.getAllowedMethods().contains("POST"));
-        assertTrue(Boolean.TRUE.equals(config.getAllowCredentials()));
+        assertTrue(config.getAllowedMethods().contains("PUT"));
+        assertTrue(config.getAllowedMethods().contains("PATCH"));
+        assertTrue(config.getAllowedMethods().contains("DELETE"));
+        assertTrue(config.getAllowedMethods().contains("OPTIONS"));
+
+        assertEquals(1, config.getAllowedHeaders().size());
+        assertTrue(config.getAllowedHeaders().contains("*"));
+        assertEquals(Boolean.TRUE, config.getAllowCredentials());
     }
 }

@@ -9,25 +9,61 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.servlet.NoHandlerFoundException;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 class GlobalExceptionHandlerTest {
 
     private final GlobalExceptionHandler handler = new GlobalExceptionHandler();
 
     @Test
-    void handleGenericException_shouldReturn500() {
+    void shouldHandleAppException() {
+        HttpServletRequest request = mock(HttpServletRequest.class);
+        when(request.getRequestURI()).thenReturn("/api/orders");
+
+        AppException exception = new AppException("Order not found", HttpStatus.NOT_FOUND);
+
+        ResponseEntity<ErrorResponse> response = handler.handleAppException(exception, request);
+
+        assertNotNull(response);
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(404, response.getBody().getStatus());
+        assertEquals("Order not found", response.getBody().getMessage());
+        assertEquals("/api/orders", response.getBody().getPath());
+        assertNotNull(response.getBody().getTimestamp());
+    }
+
+    @Test
+    void shouldHandleNotFoundException() {
+        HttpServletRequest request = mock(HttpServletRequest.class);
+        when(request.getRequestURI()).thenReturn("/api/missing");
+
+        NoHandlerFoundException exception =
+                new NoHandlerFoundException("GET", "/api/missing", null);
+
+        ResponseEntity<ErrorResponse> response = handler.handleNotFound(exception, request);
+
+        assertNotNull(response);
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(404, response.getBody().getStatus());
+        assertEquals("Resource not found", response.getBody().getMessage());
+        assertEquals("/api/missing", response.getBody().getPath());
+        assertNotNull(response.getBody().getTimestamp());
+    }
+
+    @Test
+    void shouldHandleGenericExceptionWhenMessageIsPresent() {
         HttpServletRequest request = mock(HttpServletRequest.class);
         when(request.getRequestURI()).thenReturn("/api/test");
 
-        RuntimeException exception = new RuntimeException("Something went wrong");
+        Exception exception = new Exception("Something went wrong");
 
         ResponseEntity<ErrorResponse> response = handler.handleGenericException(exception, request);
 
-        assertEquals(500, response.getStatusCode().value());
+        assertNotNull(response);
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals(500, response.getBody().getStatus());
         assertEquals("Something went wrong", response.getBody().getMessage());
@@ -36,54 +72,20 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void handleAppException_shouldPreserveCustomStatus() {
+    void shouldHandleGenericExceptionWhenMessageIsNull() {
         HttpServletRequest request = mock(HttpServletRequest.class);
         when(request.getRequestURI()).thenReturn("/api/test");
 
-        AppException exception = new AppException("Custom error", HttpStatus.BAD_REQUEST);
+        Exception exception = new Exception((String) null);
 
-        ResponseEntity<ErrorResponse> response = handler.handleAppException(exception, request);
+        ResponseEntity<ErrorResponse> response = handler.handleGenericException(exception, request);
 
-        assertEquals(400, response.getStatusCode().value());
+        assertNotNull(response);
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
         assertNotNull(response.getBody());
-        assertEquals(400, response.getBody().getStatus());
-        assertEquals("Custom error", response.getBody().getMessage());
+        assertEquals(500, response.getBody().getStatus());
+        assertEquals("Internal server error", response.getBody().getMessage());
         assertEquals("/api/test", response.getBody().getPath());
         assertNotNull(response.getBody().getTimestamp());
     }
-
-    @Test
-    void handleNotFound_shouldReturn404WithConsistentShape() {
-        HttpServletRequest request = mock(HttpServletRequest.class);
-        when(request.getRequestURI()).thenReturn("/api/nonexistent");
-
-        NoHandlerFoundException exception =
-                new NoHandlerFoundException("GET", "/api/nonexistent", null);
-
-        ResponseEntity<ErrorResponse> response = handler.handleNotFound(exception, request);
-
-        assertEquals(404, response.getStatusCode().value());
-        assertNotNull(response.getBody());
-        assertEquals(404, response.getBody().getStatus());
-        assertEquals("Resource not found", response.getBody().getMessage());
-        assertEquals("/api/nonexistent", response.getBody().getPath());
-        assertNotNull(response.getBody().getTimestamp());
-    }
-
-
-@Test
-void handleGenericException_shouldReturnDefaultMessageWhenExceptionMessageIsNull() {
-    HttpServletRequest request = mock(HttpServletRequest.class);
-    when(request.getRequestURI()).thenReturn("/api/test");
-
-    Exception exception = new Exception((String) null);
-
-    ResponseEntity<ErrorResponse> response = handler.handleGenericException(exception, request);
-
-    assertEquals(500, response.getStatusCode().value());
-    assertNotNull(response.getBody());
-    assertEquals(500, response.getBody().getStatus());
-    assertEquals("Internal server error", response.getBody().getMessage());
-    assertEquals("/api/test", response.getBody().getPath());
-    assertNotNull(response.getBody().getTimestamp());
-}}
+}

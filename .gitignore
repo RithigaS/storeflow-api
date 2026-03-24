@@ -1,33 +1,59 @@
-HELP.md
+# ======================
+# Maven
+# ======================
 target/
-.mvn/wrapper/maven-wrapper.jar
-!**/src/main/**/target/
-!**/src/test/**/target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
 
-### STS ###
-.apt_generated
-.classpath
-.factorypath
-.project
-.settings
-.springBeans
-.sts4-cache
+# ======================
+# Logs
+# ======================
+*.log
+logs/
 
-### IntelliJ IDEA ###
-.idea
-*.iws
+# ======================
+# OS files
+# ======================
+.DS_Store
+Thumbs.db
+
+# ======================
+# IDE files
+# ======================
+.idea/
 *.iml
-*.ipr
-
-### NetBeans ###
-/nbproject/private/
-/nbbuild/
-/dist/
-/nbdist/
-/.nb-gradle/
-build/
-!**/src/main/**/build/
-!**/src/test/**/build/
-
-### VS Code ###
 .vscode/
+
+# ======================
+# Environment files
+# ======================
+.env
+.env.*
+application-local.yml
+application-dev.yml
+
+# ======================
+# Test / Coverage
+# ======================
+coverage/
+jacoco.exec
+*.exec
+
+# ======================
+# Build output
+# ======================
+*.class
+
+# ======================
+# Node (if frontend exists)
+# ======================
+node_modules/
+
+# ======================
+# Temporary files
+# ======================
+*.tmp
+*.swp

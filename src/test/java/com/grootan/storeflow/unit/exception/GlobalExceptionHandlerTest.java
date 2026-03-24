@@ -5,6 +5,7 @@ import com.grootan.storeflow.exception.AppException;
 import com.grootan.storeflow.exception.GlobalExceptionHandler;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.servlet.NoHandlerFoundException;
@@ -40,7 +41,7 @@ class GlobalExceptionHandlerTest {
         when(request.getRequestURI()).thenReturn("/api/missing");
 
         NoHandlerFoundException exception =
-                new NoHandlerFoundException("GET", "/api/missing", null);
+                new NoHandlerFoundException("GET", "/api/missing", HttpHeaders.EMPTY);
 
         ResponseEntity<ErrorResponse> response = handler.handleNotFound(exception, request);
 

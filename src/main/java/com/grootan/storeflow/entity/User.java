@@ -55,12 +55,27 @@ public class User extends BaseAuditEntity {
     public User() {
     }
 
+    // Check reset token validity
     @Transient
     public boolean isResetTokenValid() {
         return resetToken != null
                 && resetTokenExpiresAt != null
                 && resetTokenExpiresAt.isAfter(LocalDateTime.now());
     }
+
+    // For Spring Security (ROLE_USER / ROLE_ADMIN)
+    @Transient
+    public String getAuthority() {
+        return "ROLE_" + this.role.name();
+    }
+
+    // Clear token after password reset
+    public void clearResetToken() {
+        this.resetToken = null;
+        this.resetTokenExpiresAt = null;
+    }
+
+    // GETTERS
 
     public Long getId() {
         return id;
@@ -98,6 +113,8 @@ public class User extends BaseAuditEntity {
         return enabled;
     }
 
+    // SETTERS
+
     public void setId(Long id) {
         this.id = id;
     }
@@ -115,7 +132,7 @@ public class User extends BaseAuditEntity {
     }
 
     public void setRole(Role role) {
-        this.role = role;
+        this.role = (role == null) ? Role.USER : role;
     }
 
     public void setAvatarPath(String avatarPath) {

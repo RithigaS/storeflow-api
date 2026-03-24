@@ -103,4 +103,14 @@ class ProductServiceTest {
         verify(productRepository).save(product);
         verify(productRepository, never()).delete(any(Product.class));
     }
+
+    @Test
+    void deleteShouldThrowWhenProductNotFound() {
+        when(productRepository.findById(5L)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> productService.delete(5L));
+
+        verify(productRepository, never()).save(any(Product.class));
+        verify(productRepository, never()).delete(any(Product.class));
+    }
 }

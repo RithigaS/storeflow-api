@@ -25,19 +25,24 @@ public class OrderController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public OrderDto placeOrder(@Valid @RequestBody CreateOrderRequest request, Principal principal) {
-        String email = principal != null ? principal.getName() : "admin@grootan.com";
+        String email = (principal != null && principal.getName() != null)
+                ? principal.getName()
+                : "user@test.com";
         return orderService.placeOrder(request, email);
     }
 
     @GetMapping
     public List<OrderDto> getOrders(@RequestParam(defaultValue = "false") boolean admin, Principal principal) {
-        String email = principal != null ? principal.getName() : "admin@grootan.com";
-        return orderService.getOrders(email, admin);
+        String email = (principal != null && principal.getName() != null)
+                ? principal.getName()
+                : "user@test.com";        return orderService.getOrders(email, admin);
     }
 
     @GetMapping("/{id}")
     public OrderDto getById(@PathVariable Long id, @RequestParam(defaultValue = "false") boolean admin, Principal principal) {
-        String email = principal != null ? principal.getName() : "admin@grootan.com";
+        String email = (principal != null && principal.getName() != null)
+                ? principal.getName()
+                : "user@test.com";
         return orderService.getOrderById(id, email, admin);
     }
 

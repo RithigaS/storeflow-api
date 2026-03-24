@@ -57,9 +57,9 @@ class OrderControllerIntegrationTest extends TestContainerConfig {
         userRepository.deleteAll();
 
         defaultUser = new User();
-        defaultUser.setEmail("admin@grootan.com");
+        defaultUser.setEmail("user@test.com");
         defaultUser.setPassword("password123");
-        defaultUser.setFullName("Admin User");
+        defaultUser.setFullName("Test User");
         defaultUser = userRepository.saveAndFlush(defaultUser);
 
         Category category = new Category();
@@ -103,7 +103,7 @@ class OrderControllerIntegrationTest extends TestContainerConfig {
                 .andExpect(jsonPath("$.referenceNumber").exists())
                 .andExpect(jsonPath("$.status").value("PENDING"))
                 .andExpect(jsonPath("$.totalAmount").value(1000))
-                .andExpect(jsonPath("$.customerEmail").value("admin@grootan.com"))
+                .andExpect(jsonPath("$.customerEmail").value("user@test.com"))
                 .andExpect(jsonPath("$.items.length()").value(1))
                 .andExpect(jsonPath("$.items[0].productId").value(product.getId()))
                 .andExpect(jsonPath("$.items[0].productName").value("Phone"))
@@ -145,7 +145,7 @@ class OrderControllerIntegrationTest extends TestContainerConfig {
         mockMvc.perform(get("/api/orders"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(order.getId()))
-                .andExpect(jsonPath("$[0].customerEmail").value("admin@grootan.com"))
+                .andExpect(jsonPath("$[0].customerEmail").value("user@test.com"))
                 .andExpect(jsonPath("$[0].referenceNumber").exists());
     }
 

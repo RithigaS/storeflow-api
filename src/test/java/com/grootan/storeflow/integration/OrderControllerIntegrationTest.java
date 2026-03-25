@@ -258,7 +258,7 @@ class OrderControllerIntegrationTest extends TestContainerConfig {
     }
 
     @Test
-    void patchOrderStatusReturns400ForInvalidStatusTransition() throws Exception {
+    void patchOrderStatusReturns422ForInvalidStatusTransition() throws Exception {
         Order order = createOrderForDefaultUser();
         order.setStatus(OrderStatus.DELIVERED);
         order = orderRepository.saveAndFlush(order);
@@ -273,7 +273,7 @@ class OrderControllerIntegrationTest extends TestContainerConfig {
                         .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestBody))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isUnprocessableEntity());
     }
 
     private Order createOrderForDefaultUser() {

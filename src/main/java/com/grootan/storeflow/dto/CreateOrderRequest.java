@@ -18,6 +18,10 @@ public class CreateOrderRequest {
     private String country;
 
     @NotBlank(message = "Postal code is required")
+    @jakarta.validation.constraints.Pattern(
+            regexp = "^[0-9]{6}$",
+            message = "Postal code must be a valid 6-digit code"
+    )
     private String postalCode;
 
     @Valid

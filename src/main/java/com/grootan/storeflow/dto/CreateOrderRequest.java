@@ -1,17 +1,28 @@
 package com.grootan.storeflow.dto;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
-import jakarta.validation.constraints.NotNull;
 
 import java.util.List;
 
 public class CreateOrderRequest {
-    @NotNull private String street;
-    @NotNull private String city;
-    @NotNull private String country;
-    @NotNull private String postalCode;
-    @Valid @NotEmpty private List<CreateOrderItemRequest> items;
+
+    @NotBlank(message = "Street is required")
+    private String street;
+
+    @NotBlank(message = "City is required")
+    private String city;
+
+    @NotBlank(message = "Country is required")
+    private String country;
+
+    @NotBlank(message = "Postal code is required")
+    private String postalCode;
+
+    @Valid
+    @NotEmpty(message = "Order items are required")
+    private List<CreateOrderItemRequest> items;
 
     public String getStreet() { return street; }
     public String getCity() { return city; }

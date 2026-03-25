@@ -314,4 +314,29 @@ class OrderControllerIntegrationTest extends TestContainerConfig {
         JsonNode jsonNode = objectMapper.readTree(response);
         return jsonNode.get("accessToken").asText();
     }
+
+
+    @Test
+    void postOrdersWithInvalidFieldsReturns400WithValidationErrors() throws Exception {
+        String requestBody = """
+            {
+              "street": "",
+              "city": "",
+              "country": "",
+              "postalCode": "",
+              "items": []
+            }
+            """;
+
+        mockMvc.perform(post("/api/orders")
+                        .header("Authorization", "Bearer " + userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Validation failed"))
+                .andExpect(jsonPath("$.errors.street").exists())
+                .andExpect(jsonPath("$.errors.city").exists())
+                .andExpect(jsonPath("$.errors.country").exists())
+                .andExpect(jsonPath("$.errors.postalCode").exists());
+    }
 }

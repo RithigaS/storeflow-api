@@ -293,6 +293,41 @@ class AuthIntegrationTest {
                 .getContentAsString();
     }
 
+    @Test
+    void signupWithInvalidFieldsReturns400() throws Exception {
+        String body = """
+            {
+              "fullName": "",
+              "email": "invalid",
+              "password": "123"
+            }
+            """;
+
+        mockMvc.perform(post("/api/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Validation failed"))
+                .andExpect(jsonPath("$.errors.fullName").exists())
+                .andExpect(jsonPath("$.errors.email").exists())
+                .andExpect(jsonPath("$.errors.password").exists());
+    }
+
+    @Test
+    void loginWithInvalidFieldsReturns400() throws Exception {
+        String body = """
+            {
+              "email": "",
+              "password": ""
+            }
+            """;
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest());
+    }
+
     private JsonNode readJson(String json) throws Exception {
         return objectMapper.readTree(json);
     }

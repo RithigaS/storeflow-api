@@ -170,6 +170,73 @@ class ProductControllerIntegrationTest extends TestContainerConfig {
     }
 
     @Test
+    void postProductsWithInvalidFieldsReturns400WithFieldErrors() throws Exception {
+        String requestBody = """
+                {
+                  "name": "",
+                  "description": "Test",
+                  "sku": "invalid-sku",
+                  "price": -10,
+                  "stockQuantity": -5,
+                  "categoryId": null
+                }
+                """;
+
+        mockMvc.perform(post("/api/products")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Validation failed"))
+                .andExpect(jsonPath("$.errors.name").exists())
+                .andExpect(jsonPath("$.errors.price").exists())
+                .andExpect(jsonPath("$.errors.stockQuantity").exists())
+                .andExpect(jsonPath("$.errors.sku").exists());
+    }
+
+    @Test
+    void postProductsWithInvalidSkuFormatReturns400() throws Exception {
+        String requestBody = """
+                {
+                  "name": "Laptop",
+                  "description": "Test",
+                  "sku": "abc123",
+                  "price": 1200,
+                  "stockQuantity": 5,
+                  "categoryId": %d
+                }
+                """.formatted(electronicsCategory.getId());
+
+        mockMvc.perform(post("/api/products")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void postProductsWithDuplicateSkuReturns409() throws Exception {
+        createProduct("Laptop", "DUP-001", BigDecimal.valueOf(1000), 5, ProductStatus.ACTIVE, electronicsCategory);
+
+        String requestBody = """
+                {
+                  "name": "Another Laptop",
+                  "description": "Test",
+                  "sku": "DUP-001",
+                  "price": 1200,
+                  "stockQuantity": 5,
+                  "categoryId": %d
+                }
+                """.formatted(electronicsCategory.getId());
+
+        mockMvc.perform(post("/api/products")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
     void getProductsReturnsPaginatedListWithCorrectPaginationMetadata() throws Exception {
         createProduct("Laptop", "LAP-100", BigDecimal.valueOf(1000), 5, ProductStatus.ACTIVE, electronicsCategory);
         createProduct("Mouse", "MOU-100", BigDecimal.valueOf(50), 20, ProductStatus.ACTIVE, electronicsCategory);

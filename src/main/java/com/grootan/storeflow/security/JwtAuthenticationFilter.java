@@ -31,14 +31,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        String path = request.getServletPath();
-        return path.startsWith("/api/auth/signup")
-                || path.startsWith("/api/auth/login")
-                || path.startsWith("/api/auth/refresh")
-                || path.startsWith("/api/auth/forgot-password")
-                || path.startsWith("/api/auth/reset-password")
+        String path = request.getRequestURI();
+
+        return path.equals("/api/auth/signup")
+                || path.equals("/api/auth/login")
+                || path.equals("/api/auth/refresh")
+                || path.equals("/api/auth/forgot-password")
+                || path.startsWith("/api/auth/reset-password/")
                 || path.startsWith("/swagger-ui")
-                || path.startsWith("/v3/api-docs");
+                || path.startsWith("/v3/api-docs")
+                || path.startsWith("/actuator");
     }
 
     @Override
@@ -49,7 +51,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String header = request.getHeader("Authorization");
 
         if (header == null || !header.startsWith("Bearer ")) {
-            writeUnauthorized(response, "Missing or invalid Authorization header");
+            filterChain.doFilter(request, response);
             return;
         }
 

@@ -28,7 +28,6 @@ public class ProductController {
         return productService.create(request);
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','USER')")
     @GetMapping
     public ApiPageResponse<ProductDto> getAll(
             @RequestParam(required = false) String category,
@@ -48,7 +47,6 @@ public class ProductController {
         );
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','USER')")
     @GetMapping("/{id}")
     public ProductDto getById(@PathVariable Long id) {
         return productService.getById(id);

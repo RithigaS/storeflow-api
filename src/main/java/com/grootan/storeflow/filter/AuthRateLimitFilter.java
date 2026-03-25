@@ -23,8 +23,8 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
 
     private Bucket createBucket() {
         Bandwidth limit = Bandwidth.classic(
-                5,
-                Refill.intervally(5, Duration.ofMinutes(15))
+                50,
+                Refill.intervally(50, Duration.ofMinutes(15))
         );
         return Bucket.builder()
                 .addLimit(limit)

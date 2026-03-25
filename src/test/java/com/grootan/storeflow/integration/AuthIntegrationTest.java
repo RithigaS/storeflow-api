@@ -23,6 +23,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -37,9 +38,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest
@@ -328,6 +327,30 @@ class AuthIntegrationTest {
                 .andExpect(status().isBadRequest());
     }
 
+    @Test
+    void uploadAvatarShouldReturnProfileWithAvatarUrl() throws Exception {
+        String email = uniqueEmail("avatar");
+        String accessToken = signupAndGetAccessToken(email, "password123", "Avatar User");
+
+        MockMultipartFile avatarFile = new MockMultipartFile(
+                "file",
+                "avatar.jpg",
+                "image/jpeg",
+                "fake-avatar-content".getBytes()
+        );
+
+        mockMvc.perform(multipart("/api/auth/me/avatar")
+                        .file(avatarFile)
+                        .with(request -> {
+                            request.setMethod("PUT");
+                            return request;
+                        })
+                        .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value(email))
+                .andExpect(jsonPath("$.avatarUrl").exists());
+    }
+
     private JsonNode readJson(String json) throws Exception {
         return objectMapper.readTree(json);
     }
@@ -335,4 +358,6 @@ class AuthIntegrationTest {
     private String uniqueEmail(String prefix) {
         return prefix + "_" + UUID.randomUUID().toString().substring(0, 8) + "@gmail.com";
     }
+
+
 }

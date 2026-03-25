@@ -1,7 +1,9 @@
 package com.grootan.storeflow.exception;
 
 import com.grootan.storeflow.dto.ErrorResponse;
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -44,7 +46,10 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<Map<String, Object>> handleValidationException(MethodArgumentNotValidException ex) {
+    public ResponseEntity<Map<String, Object>> handleValidationException(
+            MethodArgumentNotValidException ex,
+            HttpServletRequest request
+    ) {
         Map<String, String> errors = new HashMap<>();
 
         ex.getBindingResult().getFieldErrors().forEach(error ->
@@ -54,38 +59,89 @@ public class GlobalExceptionHandler {
         Map<String, Object> body = new HashMap<>();
         body.put("timestamp", Instant.now().toString());
         body.put("status", 400);
+        body.put("error", "Bad Request");
         body.put("message", "Validation failed");
+        body.put("path", request.getRequestURI());
         body.put("errors", errors);
 
         return ResponseEntity.badRequest().body(body);
     }
 
-    @ExceptionHandler(BadCredentialsException.class)
-    public ResponseEntity<Map<String, Object>> handleBadCredentials(BadCredentialsException ex) {
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, Object>> handleDataIntegrityViolation(
+            DataIntegrityViolationException ex,
+            HttpServletRequest request
+    ) {
+        Map<String, String> errors = new HashMap<>();
+        errors.put("database", "Unique constraint violation");
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", Instant.now().toString());
+        body.put("status", 409);
+        body.put("error", "Conflict");
+        body.put("message", "Data integrity violation");
+        body.put("path", request.getRequestURI());
+        body.put("errors", errors);
+
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
+
+    @ExceptionHandler(JwtException.class)
+    public ResponseEntity<Map<String, Object>> handleJwtException(
+            JwtException ex,
+            HttpServletRequest request
+    ) {
         Map<String, Object> body = new HashMap<>();
         body.put("timestamp", Instant.now().toString());
         body.put("status", 401);
+        body.put("error", "Unauthorized");
+        body.put("message", "Invalid or expired token");
+        body.put("path", request.getRequestURI());
+
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(body);
+    }
+
+    @ExceptionHandler(BadCredentialsException.class)
+    public ResponseEntity<Map<String, Object>> handleBadCredentials(
+            BadCredentialsException ex,
+            HttpServletRequest request
+    ) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", Instant.now().toString());
+        body.put("status", 401);
+        body.put("error", "Unauthorized");
         body.put("message", ex.getMessage());
+        body.put("path", request.getRequestURI());
 
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(body);
     }
 
     @ExceptionHandler(AuthenticationException.class)
-    public ResponseEntity<Map<String, Object>> handleAuthenticationException(AuthenticationException ex) {
+    public ResponseEntity<Map<String, Object>> handleAuthenticationException(
+            AuthenticationException ex,
+            HttpServletRequest request
+    ) {
         Map<String, Object> body = new HashMap<>();
         body.put("timestamp", Instant.now().toString());
         body.put("status", 401);
+        body.put("error", "Unauthorized");
         body.put("message", ex.getMessage());
+        body.put("path", request.getRequestURI());
 
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(body);
     }
 
     @ExceptionHandler(AccessDeniedException.class)
-    public ResponseEntity<Map<String, Object>> handleAccessDeniedException(AccessDeniedException ex) {
+    public ResponseEntity<Map<String, Object>> handleAccessDeniedException(
+            AccessDeniedException ex,
+            HttpServletRequest request
+    ) {
         Map<String, Object> body = new HashMap<>();
         body.put("timestamp", Instant.now().toString());
         body.put("status", 403);
+        body.put("error", "Forbidden");
         body.put("message", "Access denied");
+        body.put("path", request.getRequestURI());
 
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
     }

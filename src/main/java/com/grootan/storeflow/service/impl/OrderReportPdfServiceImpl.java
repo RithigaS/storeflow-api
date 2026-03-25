@@ -43,7 +43,7 @@ public class OrderReportPdfServiceImpl implements OrderReportPdfService {
 
                 y = writeLine(contentStream, "Items:", START_X, y, true);
 
-                for (OrderItem item : order.getItems()) {
+                for (OrderItem item : order.getOrderItems()) {
                     String line = String.format(
                             "- %s | Qty: %d | Unit Price: %s | Subtotal: %s",
                             item.getProduct().getName(),

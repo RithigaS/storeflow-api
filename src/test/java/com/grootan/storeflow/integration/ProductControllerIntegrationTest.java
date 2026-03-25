@@ -27,8 +27,11 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -443,5 +446,33 @@ class ProductControllerIntegrationTest extends TestContainerConfig {
 
         JsonNode jsonNode = objectMapper.readTree(response);
         return jsonNode.get("accessToken").asText();
+    }
+    @Test
+    void uploadProductImageAndDownloadShouldWork() throws Exception {
+        Product product = createProduct(
+                "Camera",
+                "CAM-001",
+                BigDecimal.valueOf(500),
+                10,
+                ProductStatus.ACTIVE,
+                electronicsCategory
+        );
+
+        MockMultipartFile imageFile = new MockMultipartFile(
+                "file",
+                "camera.jpg",
+                "image/jpeg",
+                "fake-image-content".getBytes()
+        );
+
+        mockMvc.perform(multipart("/api/products/{id}/image", product.getId())
+                        .file(imageFile)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.imageUrl").exists());
+
+        mockMvc.perform(get("/api/products/{id}/image", product.getId()))
+                .andExpect(status().isOk())
+                .andExpect(header().exists("Content-Type"));
     }
 }

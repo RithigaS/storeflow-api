@@ -24,6 +24,11 @@ spring:
     resources:
       add-mappings: false
 
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 5MB
+
 management:
   endpoints:
     web:
@@ -42,3 +47,8 @@ app:
     secret: MyVerySecretJwtKeyForStoreFlowProject123456789
     access-expiration: 3600000
     refresh-expiration: 604800000
+
+  file:
+    upload-dir: uploads
+    product-image-dir: products
+    avatar-dir: avatars

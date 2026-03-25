@@ -502,4 +502,28 @@ class ProductControllerIntegrationTest extends TestContainerConfig {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("File size must not exceed 5MB"));
     }
+    @Test
+    void uploadProductImageWithInvalidMimeTypeReturns400() throws Exception {
+        Product product = createProduct(
+                "Scanner",
+                "SCA-001",
+                BigDecimal.valueOf(450),
+                6,
+                ProductStatus.ACTIVE,
+                electronicsCategory
+        );
+
+        MockMultipartFile invalidFile = new MockMultipartFile(
+                "file",
+                "document.pdf",
+                "application/pdf",
+                "fake-pdf-content".getBytes()
+        );
+
+        mockMvc.perform(multipart("/api/products/{id}/image", product.getId())
+                        .file(invalidFile)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Only JPEG, PNG, and WEBP image files are allowed"));
+    }
 }

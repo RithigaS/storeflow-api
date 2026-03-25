@@ -1,6 +1,11 @@
 # Maven
-/target/
+target/
 !.mvn/wrapper/maven-wrapper.jar
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
 
 # Logs
 *.log
@@ -28,8 +33,8 @@ dist/
 build/
 
 # Coverage reports
-/coverage/
-/jacoco.exec
+coverage/
+jacoco.exec
 
 # Test reports
 surefire-reports/

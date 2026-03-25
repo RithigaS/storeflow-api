@@ -2,23 +2,35 @@ package com.grootan.storeflow.controller;
 
 import com.grootan.storeflow.dto.*;
 import com.grootan.storeflow.entity.enums.ProductStatus;
+import com.grootan.storeflow.service.FileStorageService;
 import com.grootan.storeflow.service.ProductService;
 import jakarta.validation.Valid;
+import org.springframework.core.io.InputStreamResource;
 import org.springframework.data.domain.Page;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 @RestController
 @RequestMapping("/api/products")
 public class ProductController {
 
     private final ProductService productService;
+    private final FileStorageService fileStorageService;
 
-    public ProductController(ProductService productService) {
+    public ProductController(ProductService productService, FileStorageService fileStorageService) {
         this.productService = productService;
+        this.fileStorageService = fileStorageService;
     }
 
     @PreAuthorize("hasRole('ADMIN')")
@@ -69,5 +81,36 @@ public class ProductController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long id) {
         productService.delete(id);
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @PostMapping("/{id}/image")
+    public ProductDto uploadProductImage(@PathVariable Long id, @RequestParam("file") MultipartFile file) {
+        return productService.uploadProductImage(id, file);
+    }
+
+    @GetMapping("/{id}/image")
+    public ResponseEntity<InputStreamResource> downloadProductImage(@PathVariable Long id) throws IOException {
+        ProductDto product = productService.getById(id);
+
+        if (product.imageUrl()== null || product.imageUrl().isBlank()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        Path filePath = fileStorageService.loadAsPath(product.imageUrl());
+        String contentType = fileStorageService.detectContentType(filePath);
+
+        InputStreamResource resource = new InputStreamResource(Files.newInputStream(filePath));
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(contentType))
+                .header(
+                        HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.inline()
+                                .filename(filePath.getFileName().toString())
+                                .build()
+                                .toString()
+                )
+                .body(resource);
     }
 }

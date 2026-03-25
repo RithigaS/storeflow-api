@@ -1,60 +1,47 @@
-# ======================
 # Maven
-# ======================
 target/
-pom.xml
+!.mvn/wrapper/maven-wrapper.jar
 pom.xml.tag
 pom.xml.releaseBackup
 pom.xml.versionsBackup
 pom.xml.next
 release.properties
 
-# ======================
 # Logs
-# ======================
 *.log
-logs/
 
-# ======================
 # OS files
-# ======================
 .DS_Store
 Thumbs.db
 
-# ======================
-# IDE files
-# ======================
+# IDE (IntelliJ / VS Code / Eclipse)
 .idea/
 *.iml
 .vscode/
+.settings/
+.project
+.classpath
 
-# ======================
-# Environment files
-# ======================
-.env
-.env.*
-application-local.yml
-application-dev.yml
-
-# ======================
-# Test / Coverage
-# ======================
-coverage/
-jacoco.exec
-*.exec
-
-# ======================
-# Build output
-# ======================
-*.class
-
-# ======================
-# Node (if frontend exists)
-# ======================
+# Node (if frontend exists later)
 node_modules/
 
-# ======================
+# Environment variables
+.env
+
+# Build outputs
+dist/
+build/
+
+# Coverage reports
+coverage/
+jacoco.exec
+
+# Test reports
+surefire-reports/
+
 # Temporary files
-# ======================
 *.tmp
 *.swp
+
+# OS generated
+desktop.ini

@@ -40,8 +40,16 @@ public class User extends BaseAuditEntity {
     @Column(nullable = false, length = 20)
     private Role role = Role.USER;
 
-    @Column(name = "avatar_path")
-    private String avatarPath;
+    @Column(name = "avatar_url", length = 500)
+    private String avatarUrl;
+
+    public String getAvatarUrl() {
+        return avatarUrl;
+    }
+
+    public void setAvatarUrl(String avatarUrl) {
+        this.avatarUrl = avatarUrl;
+    }
 
     @Column(name = "reset_token")
     private String resetToken;
@@ -98,7 +106,7 @@ public class User extends BaseAuditEntity {
     }
 
     public String getAvatarPath() {
-        return avatarPath;
+        return avatarUrl;
     }
 
     public String getResetToken() {
@@ -136,7 +144,7 @@ public class User extends BaseAuditEntity {
     }
 
     public void setAvatarPath(String avatarPath) {
-        this.avatarPath = avatarPath;
+        this.avatarUrl = avatarPath;
     }
 
     public void setResetToken(String resetToken) {

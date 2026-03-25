@@ -475,4 +475,31 @@ class ProductControllerIntegrationTest extends TestContainerConfig {
                 .andExpect(status().isOk())
                 .andExpect(header().exists("Content-Type"));
     }
+
+    @Test
+    void uploadOversizedProductImageReturns400() throws Exception {
+        Product product = createProduct(
+                "Printer",
+                "PRI-001",
+                BigDecimal.valueOf(700),
+                5,
+                ProductStatus.ACTIVE,
+                electronicsCategory
+        );
+
+        byte[] largeContent = new byte[5 * 1024 * 1024 + 1];
+
+        MockMultipartFile imageFile = new MockMultipartFile(
+                "file",
+                "large.jpg",
+                "image/jpeg",
+                largeContent
+        );
+
+        mockMvc.perform(multipart("/api/products/{id}/image", product.getId())
+                        .file(imageFile)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("File size must not exceed 5MB"));
+    }
 }

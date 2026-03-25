@@ -11,6 +11,7 @@ import com.grootan.storeflow.exception.ResourceNotFoundException;
 import com.grootan.storeflow.mapper.ProductMapper;
 import com.grootan.storeflow.repository.CategoryRepository;
 import com.grootan.storeflow.repository.ProductRepository;
+import com.grootan.storeflow.service.FileStorageService;
 import com.grootan.storeflow.service.ProductService;
 import com.grootan.storeflow.specification.ProductSpecification;
 import org.springframework.data.domain.Page;
@@ -18,6 +19,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -28,10 +30,16 @@ public class ProductServiceImpl implements ProductService {
 
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
+    private final FileStorageService fileStorageService;
 
-    public ProductServiceImpl(ProductRepository productRepository, CategoryRepository categoryRepository) {
+    public ProductServiceImpl(
+            ProductRepository productRepository,
+            CategoryRepository categoryRepository,
+            FileStorageService fileStorageService
+    ) {
         this.productRepository = productRepository;
         this.categoryRepository = categoryRepository;
+        this.fileStorageService = fileStorageService;
     }
 
     @Override
@@ -108,5 +116,16 @@ public class ProductServiceImpl implements ProductService {
         product.setStatus(ProductStatus.DISCONTINUED);
         product.setDeletedAt(LocalDateTime.now());
         productRepository.save(product);
+    }
+
+    @Override
+    public ProductDto uploadProductImage(Long id, MultipartFile file) {
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
+
+        String imageUrl = fileStorageService.storeProductImage(file, id);
+        product.setImageUrl(imageUrl);
+
+        return ProductMapper.toDto(productRepository.save(product));
     }
 }

@@ -379,4 +379,33 @@ class OrderControllerIntegrationTest extends TestContainerConfig {
         JsonNode jsonNode = objectMapper.readTree(response);
         return jsonNode.get("accessToken").asText();
     }
+
+    @Test
+    void userCannotAccessAnotherUsersOrderById() throws Exception {
+        User anotherUser = new User();
+        anotherUser.setEmail("another@test.com");
+        anotherUser.setPassword(passwordEncoder.encode("password123"));
+        anotherUser.setFullName("Another User");
+        anotherUser.setRole(Role.USER);
+        anotherUser.setEnabled(true);
+        anotherUser = userRepository.saveAndFlush(anotherUser);
+
+        Order order = new Order();
+        order.setCustomer(anotherUser);
+        order.setShippingAddress(new ShippingAddress("Street", "City", "India", "641001"));
+
+        OrderItem item = new OrderItem();
+        item.setProduct(product);
+        item.setQuantity(1);
+        item.setUnitPrice(product.getPrice());
+        item.calculateSubtotal();
+
+        order.addOrderItem(item);
+        order.recalculateTotalAmount();
+        order = orderRepository.saveAndFlush(order);
+
+        mockMvc.perform(get("/api/orders/{id}", order.getId())
+                        .header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isNotFound());
+    }
 }

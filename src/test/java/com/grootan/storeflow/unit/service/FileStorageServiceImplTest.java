@@ -60,4 +60,32 @@ class FileStorageServiceImplTest {
         assertEquals("Only JPEG, PNG, and WEBP image files are allowed", exception.getMessage());
         assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
     }
+
+    @Test
+    void validateImageFileRejectsEmptyFile() {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "empty.jpg",
+                "image/jpeg",
+                new byte[0]
+        );
+
+        AppException exception = assertThrows(
+                AppException.class,
+                () -> fileStorageService.validateImageFile(file)
+        );
+
+        assertEquals("File is required", exception.getMessage());
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
+    }
+    @Test
+    void loadAsPathRejectsNullPath() {
+        AppException exception = assertThrows(
+                AppException.class,
+                () -> fileStorageService.loadAsPath(null)
+        );
+
+        assertEquals("File path is empty", exception.getMessage());
+        assertEquals(HttpStatus.NOT_FOUND, exception.getStatus());
+    }
 }

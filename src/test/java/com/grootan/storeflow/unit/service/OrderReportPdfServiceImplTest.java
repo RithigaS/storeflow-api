@@ -46,6 +46,56 @@ class OrderReportPdfServiceImplTest {
         }
     }
 
+    @Test
+    void generateOrderReportHandlesNullCreatedAt() throws IOException {
+        Order order = buildOrder();
+        order.setCreatedAt(null);
+
+        byte[] pdfBytes = orderReportPdfService.generateOrderReport(order);
+
+        assertNotNull(pdfBytes);
+        assertTrue(pdfBytes.length > 0);
+
+        try (PDDocument document = PDDocument.load(pdfBytes)) {
+            String extractedText = new PDFTextStripper().getText(document);
+
+            assertTrue(extractedText.contains("Order Date: N/A"));
+        }
+    }
+    @Test
+    void generateOrderReportContainsAllOrderItems() throws IOException {
+        Order order = buildOrder();
+
+        Category category = new Category();
+        category.setName("Electronics");
+
+        Product extraProduct = new Product();
+        extraProduct.setId(202L);
+        extraProduct.setName("Mouse");
+        extraProduct.setSku("MOU-777");
+        extraProduct.setPrice(BigDecimal.valueOf(1500));
+        extraProduct.setStockQuantity(5);
+        extraProduct.setStatus(ProductStatus.ACTIVE);
+        extraProduct.setCategory(category);
+
+        OrderItem extraItem = new OrderItem();
+        extraItem.setProduct(extraProduct);
+        extraItem.setQuantity(1);
+        extraItem.setUnitPrice(extraProduct.getPrice());
+        extraItem.calculateSubtotal();
+
+        order.addOrderItem(extraItem);
+        order.recalculateTotalAmount();
+
+        byte[] pdfBytes = orderReportPdfService.generateOrderReport(order);
+
+        try (PDDocument document = PDDocument.load(pdfBytes)) {
+            String extractedText = new PDFTextStripper().getText(document);
+
+            assertTrue(extractedText.contains("Laptop"));
+            assertTrue(extractedText.contains("Mouse"));
+        }
+    }
     private Order buildOrder() {
         Category category = new Category();
         category.setName("Electronics");

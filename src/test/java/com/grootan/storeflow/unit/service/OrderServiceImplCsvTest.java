@@ -20,6 +20,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
@@ -125,5 +126,137 @@ class OrderServiceImplCsvTest {
         assertTrue(csv.contains("\"user@test.com\""));
         assertTrue(csv.contains("\"Laptop\""));
         assertTrue(csv.contains("\"Mouse\""));
+    }
+    @Test
+    void exportOrdersAsCsvWithNoOrdersReturnsHeaderOnly() {
+        User user = new User();
+        user.setId(1L);
+        user.setFullName("Test User");
+        user.setEmail("user@test.com");
+        user.setPassword("encoded-password");
+        user.setRole(Role.USER);
+        user.setEnabled(true);
+
+        when(userRepository.findByEmailIgnoreCase("user@test.com"))
+                .thenReturn(Optional.of(user));
+        when(orderRepository.findByCustomer(user))
+                .thenReturn(List.of());
+
+        byte[] csvBytes = orderService.exportOrdersAsCsv(
+                LocalDate.of(2026, 3, 24),
+                LocalDate.of(2026, 3, 26),
+                "user@test.com",
+                false
+        );
+
+        String csv = new String(csvBytes, StandardCharsets.UTF_8);
+
+        assertTrue(csv.startsWith("orderId,orderDate,customerName,customerEmail,status,productName,quantity,unitPrice,subtotal,totalAmount"));
+    }
+    @Test
+    void exportOrdersAsCsvSkipsOrdersBeforeFromDate() {
+        User user = new User();
+        user.setId(1L);
+        user.setFullName("Test User");
+        user.setEmail("user@test.com");
+        user.setRole(Role.USER);
+        user.setEnabled(true);
+
+        Category category = new Category();
+        category.setName("Electronics");
+
+        Product product = new Product();
+        product.setName("Laptop");
+        product.setSku("LAP-002");
+        product.setPrice(BigDecimal.valueOf(50000));
+        product.setStockQuantity(10);
+        product.setStatus(ProductStatus.ACTIVE);
+        product.setCategory(category);
+
+        Order order = new Order();
+        order.setId(1001L);
+        order.setCustomer(user);
+        order.setStatus(OrderStatus.PENDING);
+        order.setShippingAddress(new ShippingAddress("Street", "City", "India", "641001"));
+        order.setCreatedAt(LocalDateTime.of(2026, 3, 20, 10, 0));
+
+        OrderItem item = new OrderItem();
+        item.setProduct(product);
+        item.setQuantity(1);
+        item.setUnitPrice(product.getPrice());
+        item.calculateSubtotal();
+
+        order.addOrderItem(item);
+        order.recalculateTotalAmount();
+
+        when(userRepository.findByEmailIgnoreCase("user@test.com"))
+                .thenReturn(Optional.of(user));
+        when(orderRepository.findByCustomer(user))
+                .thenReturn(List.of(order));
+
+        byte[] csvBytes = orderService.exportOrdersAsCsv(
+                LocalDate.of(2026, 3, 21),
+                LocalDate.of(2026, 3, 25),
+                "user@test.com",
+                false
+        );
+
+        String csv = new String(csvBytes, StandardCharsets.UTF_8);
+
+        assertTrue(csv.startsWith("orderId,orderDate,customerName,customerEmail,status,productName,quantity,unitPrice,subtotal,totalAmount"));
+        assertFalse(csv.contains("\"Laptop\""));
+    }
+
+    @Test
+    void exportOrdersAsCsvSkipsOrdersAfterToDate() {
+        User user = new User();
+        user.setId(1L);
+        user.setFullName("Test User");
+        user.setEmail("user@test.com");
+        user.setRole(Role.USER);
+        user.setEnabled(true);
+
+        Category category = new Category();
+        category.setName("Electronics");
+
+        Product product = new Product();
+        product.setName("Mouse");
+        product.setSku("MOU-002");
+        product.setPrice(BigDecimal.valueOf(1000));
+        product.setStockQuantity(10);
+        product.setStatus(ProductStatus.ACTIVE);
+        product.setCategory(category);
+
+        Order order = new Order();
+        order.setId(1002L);
+        order.setCustomer(user);
+        order.setStatus(OrderStatus.PENDING);
+        order.setShippingAddress(new ShippingAddress("Street", "City", "India", "641001"));
+        order.setCreatedAt(LocalDateTime.of(2026, 3, 30, 10, 0));
+
+        OrderItem item = new OrderItem();
+        item.setProduct(product);
+        item.setQuantity(1);
+        item.setUnitPrice(product.getPrice());
+        item.calculateSubtotal();
+
+        order.addOrderItem(item);
+        order.recalculateTotalAmount();
+
+        when(userRepository.findByEmailIgnoreCase("user@test.com"))
+                .thenReturn(Optional.of(user));
+        when(orderRepository.findByCustomer(user))
+                .thenReturn(List.of(order));
+
+        byte[] csvBytes = orderService.exportOrdersAsCsv(
+                LocalDate.of(2026, 3, 24),
+                LocalDate.of(2026, 3, 26),
+                "user@test.com",
+                false
+        );
+
+        String csv = new String(csvBytes, StandardCharsets.UTF_8);
+
+        assertFalse(csv.contains("\"Mouse\""));
     }
 }

@@ -46,6 +46,9 @@ public class Product extends BaseAuditEntity {
     @Column(nullable = false, length = 30)
     private ProductStatus status = ProductStatus.ACTIVE;
 
+    @Column(name = "image_url", length = 500)
+    private String imageUrl;
+
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
@@ -60,6 +63,7 @@ public class Product extends BaseAuditEntity {
     public BigDecimal getPrice() { return price; }
     public Integer getStockQuantity() { return stockQuantity; }
     public ProductStatus getStatus() { return status; }
+    public String getImageUrl() { return imageUrl; }
     public LocalDateTime getDeletedAt() { return deletedAt; }
     public Category getCategory() { return category; }
 
@@ -70,6 +74,7 @@ public class Product extends BaseAuditEntity {
     public void setPrice(BigDecimal price) { this.price = price; }
     public void setStockQuantity(Integer stockQuantity) { this.stockQuantity = stockQuantity; }
     public void setStatus(ProductStatus status) { this.status = status; }
+    public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
     public void setDeletedAt(LocalDateTime deletedAt) { this.deletedAt = deletedAt; }
     public void setCategory(Category category) { this.category = category; }
 }

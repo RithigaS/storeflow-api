@@ -10,7 +10,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: update
     show-sql: true
     properties:
       hibernate:
@@ -19,8 +19,6 @@ spring:
   flyway:
     enabled: true
     baseline-on-migrate: true
-
-
 
   web:
     resources:
@@ -38,3 +36,9 @@ management:
 server:
   error:
     include-message: always
+
+app:
+  jwt:
+    secret: MyVerySecretJwtKeyForStoreFlowProject123456789
+    access-expiration: 3600000
+    refresh-expiration: 604800000

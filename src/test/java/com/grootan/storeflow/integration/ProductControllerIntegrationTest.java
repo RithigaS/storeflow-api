@@ -1,21 +1,40 @@
 package com.grootan.storeflow.integration;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.grootan.storeflow.entity.Category;
 import com.grootan.storeflow.entity.Product;
+import com.grootan.storeflow.entity.User;
 import com.grootan.storeflow.entity.enums.ProductStatus;
+import com.grootan.storeflow.entity.enums.Role;
+import com.grootan.storeflow.filter.AuthRateLimitFilter;
 import com.grootan.storeflow.integration.config.TestContainerConfig;
 import com.grootan.storeflow.repository.CategoryRepository;
+import com.grootan.storeflow.repository.PasswordResetTokenRepository;
 import com.grootan.storeflow.repository.ProductRepository;
+import com.grootan.storeflow.repository.RefreshTokenRepository;
+import com.grootan.storeflow.repository.UserRepository;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -28,8 +47,32 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 class ProductControllerIntegrationTest extends TestContainerConfig {
 
+    @TestConfiguration
+    static class NoRateLimitConfig {
+        @Bean
+        @Primary
+        public AuthRateLimitFilter authRateLimitFilter() {
+            return new AuthRateLimitFilter() {
+                @Override
+                protected boolean shouldNotFilter(HttpServletRequest request) {
+                    return false;
+                }
+
+                @Override
+                protected void doFilterInternal(HttpServletRequest request,
+                                                HttpServletResponse response,
+                                                FilterChain filterChain) throws ServletException, IOException {
+                    filterChain.doFilter(request, response);
+                }
+            };
+        }
+    }
+
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @Autowired
     private CategoryRepository categoryRepository;
@@ -37,13 +80,37 @@ class ProductControllerIntegrationTest extends TestContainerConfig {
     @Autowired
     private ProductRepository productRepository;
 
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private RefreshTokenRepository refreshTokenRepository;
+
+    @Autowired
+    private PasswordResetTokenRepository passwordResetTokenRepository;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
     private Category electronicsCategory;
     private Category booksCategory;
+    private String adminToken;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws Exception {
+        passwordResetTokenRepository.deleteAll();
+        refreshTokenRepository.deleteAll();
         productRepository.deleteAll();
         categoryRepository.deleteAll();
+        userRepository.deleteAll();
+
+        User adminUser = new User();
+        adminUser.setEmail("admin@test.com");
+        adminUser.setPassword(passwordEncoder.encode("password123"));
+        adminUser.setFullName("Admin User");
+        adminUser.setRole(Role.ADMIN);
+        adminUser.setEnabled(true);
+        userRepository.saveAndFlush(adminUser);
 
         electronicsCategory = new Category();
         electronicsCategory.setName("Electronics");
@@ -54,6 +121,8 @@ class ProductControllerIntegrationTest extends TestContainerConfig {
         booksCategory.setName("Books");
         booksCategory.setDescription("Books category");
         booksCategory = categoryRepository.saveAndFlush(booksCategory);
+
+        adminToken = loginAndGetToken("admin@test.com", "password123");
     }
 
     @Test
@@ -70,6 +139,7 @@ class ProductControllerIntegrationTest extends TestContainerConfig {
                 """.formatted(electronicsCategory.getId());
 
         mockMvc.perform(post("/api/products")
+                        .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestBody))
                 .andExpect(status().isCreated())
@@ -93,6 +163,7 @@ class ProductControllerIntegrationTest extends TestContainerConfig {
                 """;
 
         mockMvc.perform(post("/api/products")
+                        .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestBody))
                 .andExpect(status().isBadRequest());
@@ -100,8 +171,8 @@ class ProductControllerIntegrationTest extends TestContainerConfig {
 
     @Test
     void getProductsReturnsPaginatedListWithCorrectPaginationMetadata() throws Exception {
-        Product p1 = createProduct("Laptop", "LAP-100", BigDecimal.valueOf(1000), 5, ProductStatus.ACTIVE, electronicsCategory);
-        Product p2 = createProduct("Mouse", "MOU-100", BigDecimal.valueOf(50), 20, ProductStatus.ACTIVE, electronicsCategory);
+        createProduct("Laptop", "LAP-100", BigDecimal.valueOf(1000), 5, ProductStatus.ACTIVE, electronicsCategory);
+        createProduct("Mouse", "MOU-100", BigDecimal.valueOf(50), 20, ProductStatus.ACTIVE, electronicsCategory);
 
         mockMvc.perform(get("/api/products")
                         .param("page", "0")
@@ -188,6 +259,7 @@ class ProductControllerIntegrationTest extends TestContainerConfig {
                 """.formatted(booksCategory.getId());
 
         mockMvc.perform(put("/api/products/{id}", product.getId())
+                        .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestBody))
                 .andExpect(status().isOk())
@@ -212,6 +284,7 @@ class ProductControllerIntegrationTest extends TestContainerConfig {
                 """;
 
         mockMvc.perform(patch("/api/products/{id}/stock", product.getId())
+                        .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestBody))
                 .andExpect(status().isOk())
@@ -230,6 +303,7 @@ class ProductControllerIntegrationTest extends TestContainerConfig {
                 """;
 
         mockMvc.perform(patch("/api/products/{id}/stock", product.getId())
+                        .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestBody))
                 .andExpect(status().isBadRequest());
@@ -246,6 +320,7 @@ class ProductControllerIntegrationTest extends TestContainerConfig {
                 """;
 
         mockMvc.perform(patch("/api/products/{id}/stock", product.getId())
+                        .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestBody))
                 .andExpect(status().isOk())
@@ -257,12 +332,13 @@ class ProductControllerIntegrationTest extends TestContainerConfig {
     void deleteProductSoftDeletesProductBySettingDiscontinuedAndDeletedAt() throws Exception {
         Product product = createProduct("Monitor", "MON-001", BigDecimal.valueOf(800), 6, ProductStatus.ACTIVE, electronicsCategory);
 
-        mockMvc.perform(delete("/api/products/{id}", product.getId()))
+        mockMvc.perform(delete("/api/products/{id}", product.getId())
+                        .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isNoContent());
 
         Product updated = productRepository.findById(product.getId()).orElseThrow();
-        org.junit.jupiter.api.Assertions.assertEquals(ProductStatus.DISCONTINUED, updated.getStatus());
-        org.junit.jupiter.api.Assertions.assertNotNull(updated.getDeletedAt());
+        assertEquals(ProductStatus.DISCONTINUED, updated.getStatus());
+        assertNotNull(updated.getDeletedAt());
     }
 
     private Product createProduct(String name,
@@ -280,5 +356,25 @@ class ProductControllerIntegrationTest extends TestContainerConfig {
         product.setStatus(status);
         product.setCategory(category);
         return productRepository.saveAndFlush(product);
+    }
+
+    private String loginAndGetToken(String email, String password) throws Exception {
+        String loginBody = """
+                {
+                  "email": "%s",
+                  "password": "%s"
+                }
+                """.formatted(email, password);
+
+        String response = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(loginBody))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        JsonNode jsonNode = objectMapper.readTree(response);
+        return jsonNode.get("accessToken").asText();
     }
 }

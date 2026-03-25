@@ -6,6 +6,7 @@ import com.grootan.storeflow.service.ProductService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -20,6 +21,7 @@ public class ProductController {
         this.productService = productService;
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ProductDto create(@Valid @RequestBody CreateProductRequest request) {
@@ -50,16 +52,19 @@ public class ProductController {
         return productService.getById(id);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}")
     public ProductDto update(@PathVariable Long id, @Valid @RequestBody UpdateProductRequest request) {
         return productService.update(id, request);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PatchMapping("/{id}/stock")
     public ProductDto adjustStock(@PathVariable Long id, @Valid @RequestBody AdjustStockRequest request) {
         return productService.adjustStock(id, request.getDelta());
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long id) {

@@ -31,6 +31,7 @@ public class CreateProductRequest {
     private Integer stockQuantity;
 
     @NotNull(message = "Category ID is required")
+    @com.grootan.storeflow.validation.ExistsCategory
     private Long categoryId;
 
     public String getName() {

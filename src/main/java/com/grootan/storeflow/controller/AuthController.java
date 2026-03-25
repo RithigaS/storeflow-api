@@ -12,6 +12,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.security.Principal;
 
@@ -56,5 +57,15 @@ public class AuthController {
     @GetMapping("/me")
     public ResponseEntity<UserProfileResponse> me(Principal principal) {
         return ResponseEntity.ok(authService.getCurrentUserProfile(principal.getName()));
+    }
+
+    @PutMapping("/me/avatar")
+    public ResponseEntity<UserProfileResponse> uploadAvatar(
+            Principal principal,
+            @RequestParam("file") MultipartFile file
+    ) {
+        return ResponseEntity.ok(
+                authService.uploadAvatar(principal.getName(), file)
+        );
     }
 }

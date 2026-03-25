@@ -17,6 +17,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -31,6 +32,7 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final EmailService emailService;
+    private final com.grootan.storeflow.service.FileStorageService fileStorageService;
 
     @Override
     public AuthResponse signup(SignupRequest request) {
@@ -172,7 +174,26 @@ public class AuthServiceImpl implements AuthService {
 
         return response;
     }
+    @Override
+    public UserProfileResponse uploadAvatar(String email, MultipartFile file) {
+        String normalizedEmail = normalizeEmail(email);
 
+        User user = userRepository.findByEmailIgnoreCase(normalizedEmail)
+                .orElseThrow(() -> new AppException("User not found", HttpStatus.NOT_FOUND));
+
+        String avatarUrl = fileStorageService.storeAvatar(file, user.getId());
+        user.setAvatarUrl(avatarUrl);
+
+        userRepository.save(user);
+
+        UserProfileResponse response = new UserProfileResponse();
+        response.setId(user.getId());
+        response.setFullName(user.getFullName());
+        response.setEmail(user.getEmail());
+        response.setRole(user.getRole().name());
+
+        return response;
+    }
     private RefreshToken buildRefreshToken(User user, String token) {
         RefreshToken refreshToken = new RefreshToken();
         refreshToken.setToken(token);
@@ -211,4 +232,5 @@ public class AuthServiceImpl implements AuthService {
     private String normalizeEmail(String email) {
         return email == null ? null : email.trim().toLowerCase();
     }
+
 }

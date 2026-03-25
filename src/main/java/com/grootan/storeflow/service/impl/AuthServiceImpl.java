@@ -171,6 +171,7 @@ public class AuthServiceImpl implements AuthService {
         response.setFullName(user.getFullName());
         response.setEmail(user.getEmail());
         response.setRole(user.getRole().name());
+        response.setAvatarUrl(user.getAvatarUrl());
 
         return response;
     }
@@ -191,7 +192,7 @@ public class AuthServiceImpl implements AuthService {
         response.setFullName(user.getFullName());
         response.setEmail(user.getEmail());
         response.setRole(user.getRole().name());
-
+        response.setAvatarUrl(user.getAvatarUrl());
         return response;
     }
     private RefreshToken buildRefreshToken(User user, String token) {

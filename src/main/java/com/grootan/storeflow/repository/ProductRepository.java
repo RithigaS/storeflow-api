@@ -26,4 +26,8 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
             ORDER BY p.stockQuantity ASC, p.id ASC
             """)
     List<Product> findLowStockProducts(@Param("threshold") int threshold);
+
+    // old (used by tests)
+    List<Product> findAllByStockQuantityLessThan(int threshold);
+
 }

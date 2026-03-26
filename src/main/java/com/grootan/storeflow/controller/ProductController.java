@@ -15,7 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-import com.grootan.storeflow.dto.OffsetPageResponse;
+
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.file.Files;
@@ -60,6 +60,50 @@ public class ProductController {
         );
     }
 
+    // 🔥 Pagination APIs FIRST
+
+    @GetMapping("/paginated")
+    public OffsetPageResponse<ProductDto> getProductsWithPagination(
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) ProductStatus status,
+            @RequestParam(required = false) BigDecimal minPrice,
+            @RequestParam(required = false) BigDecimal maxPrice,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String sort
+    ) {
+        var result = productService.getAllWithPagination(
+                name, category, status, minPrice, maxPrice, page, size, sort
+        );
+        return new OffsetPageResponse<>(result);
+    }
+
+    @GetMapping("/cursor")
+    public CursorPageResponse<ProductDto> getProductsWithCursor(
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) ProductStatus status,
+            @RequestParam(required = false) BigDecimal minPrice,
+            @RequestParam(required = false) BigDecimal maxPrice,
+            @RequestParam(required = false) Long cursor,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String sort
+    ) {
+        return productService.getAllWithCursor(
+                name, category, status, minPrice, maxPrice, cursor, size, sort
+        );
+    }
+
+    @GetMapping("/low-stock")
+    public List<ProductDto> getLowStockProducts(
+            @RequestParam(defaultValue = "10") int threshold
+    ) {
+        return productService.getLowStockProducts(threshold);
+    }
+
+    // 🔥 IMPORTANT: keep {id} at bottom
+
     @GetMapping("/{id}")
     public ProductDto getById(@PathVariable Long id) {
         return productService.getById(id);
@@ -94,7 +138,7 @@ public class ProductController {
     public ResponseEntity<InputStreamResource> downloadProductImage(@PathVariable Long id) throws IOException {
         ProductDto product = productService.getById(id);
 
-        if (product.imageUrl()== null || product.imageUrl().isBlank()) {
+        if (product.imageUrl() == null || product.imageUrl().isBlank()) {
             return ResponseEntity.notFound().build();
         }
 
@@ -113,44 +157,5 @@ public class ProductController {
                                 .toString()
                 )
                 .body(resource);
-    }
-    @GetMapping("/products/paginated")
-    public OffsetPageResponse<ProductDto> getProductsWithPagination(
-            @RequestParam(required = false) String name,
-            @RequestParam(required = false) String category,
-            @RequestParam(required = false) ProductStatus status,
-            @RequestParam(required = false) BigDecimal minPrice,
-            @RequestParam(required = false) BigDecimal maxPrice,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size,
-            @RequestParam(required = false) String sort
-    ) {
-        var result = productService.getAllWithPagination(
-                name, category, status, minPrice, maxPrice, page, size, sort
-        );
-
-        return new OffsetPageResponse<>(result);
-    }
-    @GetMapping("/products/cursor")
-    public CursorPageResponse<ProductDto> getProductsWithCursor(
-            @RequestParam(required = false) String name,
-            @RequestParam(required = false) String category,
-            @RequestParam(required = false) ProductStatus status,
-            @RequestParam(required = false) BigDecimal minPrice,
-            @RequestParam(required = false) BigDecimal maxPrice,
-            @RequestParam(required = false) Long cursor,
-            @RequestParam(defaultValue = "20") int size,
-            @RequestParam(required = false) String sort
-    ) {
-        return productService.getAllWithCursor(
-                name, category, status, minPrice, maxPrice, cursor, size, sort
-        );
-    }
-
-    @GetMapping("/admin/products/low-stock")
-    public List<ProductDto> getLowStockProducts(
-            @RequestParam(defaultValue = "10") int threshold
-    ) {
-        return productService.getLowStockProducts(threshold);
     }
 }

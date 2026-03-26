@@ -3,6 +3,7 @@ package com.grootan.storeflow.service;
 import com.grootan.storeflow.dto.CreateProductRequest;
 import com.grootan.storeflow.dto.ProductDto;
 import com.grootan.storeflow.dto.UpdateProductRequest;
+import com.grootan.storeflow.dto.CursorPageResponse; // ✅ NEW
 import com.grootan.storeflow.entity.enums.ProductStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.web.multipart.MultipartFile;
@@ -14,7 +15,7 @@ public interface ProductService {
 
     ProductDto create(CreateProductRequest request);
 
-    //  Existing method (keep for backward compatibility)
+    // Existing method (keep for backward compatibility)
     Page<ProductDto> getAll(String category, ProductStatus status, BigDecimal minPrice, BigDecimal maxPrice, int page, int size);
 
     // Offset pagination with sorting
@@ -30,7 +31,7 @@ public interface ProductService {
     );
 
     //  Cursor-based pagination
-    List<ProductDto> getAllWithCursor(
+    CursorPageResponse<ProductDto> getAllWithCursor(
             String name,
             String category,
             ProductStatus status,

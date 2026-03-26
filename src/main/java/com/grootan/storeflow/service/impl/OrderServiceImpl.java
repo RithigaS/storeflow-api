@@ -2,6 +2,7 @@ package com.grootan.storeflow.service.impl;
 
 import com.grootan.storeflow.dto.CreateOrderItemRequest;
 import com.grootan.storeflow.dto.CreateOrderRequest;
+import com.grootan.storeflow.dto.NotificationPayload;
 import com.grootan.storeflow.dto.OrderDto;
 import com.grootan.storeflow.entity.*;
 import com.grootan.storeflow.entity.enums.OrderStatus;
@@ -12,6 +13,7 @@ import com.grootan.storeflow.mapper.OrderMapper;
 import com.grootan.storeflow.repository.OrderRepository;
 import com.grootan.storeflow.repository.ProductRepository;
 import com.grootan.storeflow.repository.UserRepository;
+import com.grootan.storeflow.service.NotificationService;
 import com.grootan.storeflow.service.OrderReportPdfService;
 import com.grootan.storeflow.service.OrderService;
 import org.springframework.stereotype.Service;
@@ -29,17 +31,20 @@ public class OrderServiceImpl implements OrderService {
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
     private final OrderReportPdfService orderReportPdfService;
+    private final NotificationService notificationService;
 
     public OrderServiceImpl(
             OrderRepository orderRepository,
             ProductRepository productRepository,
             UserRepository userRepository,
-            OrderReportPdfService orderReportPdfService
+            OrderReportPdfService orderReportPdfService,
+            NotificationService notificationService
     ) {
         this.orderRepository = orderRepository;
         this.productRepository = productRepository;
         this.userRepository = userRepository;
         this.orderReportPdfService = orderReportPdfService;
+        this.notificationService = notificationService; // ✅ ADD
     }
 
     @Override
@@ -111,7 +116,22 @@ public class OrderServiceImpl implements OrderService {
         }
 
         order.setStatus(status);
-        return OrderMapper.toDto(orderRepository.save(order));
+        Order saved = orderRepository.save(order);
+
+        //  SEND WEBSOCKET NOTIFICATION
+        NotificationPayload payload = new NotificationPayload(
+                "Order status updated",
+                status.name(),
+                java.time.LocalDateTime.now()
+        );
+
+        notificationService.sendOrderStatusUpdate(
+                saved.getId(),
+                saved.getCustomer().getId(),
+                payload
+        );
+
+        return OrderMapper.toDto(saved);
     }
 
     @Override

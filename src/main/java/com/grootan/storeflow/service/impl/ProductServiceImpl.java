@@ -172,8 +172,42 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    public List<ProductDto> getAllWithCursor(String name, String category, ProductStatus status, BigDecimal minPrice, BigDecimal maxPrice, Long cursor, int size, String sort) {
-        return List.of();
+    @Transactional(readOnly = true)
+    public List<ProductDto> getAllWithCursor(
+            String name,
+            String category,
+            ProductStatus status,
+            BigDecimal minPrice,
+            BigDecimal maxPrice,
+            Long cursor,
+            int size,
+            String sort
+    ) {
+        //  size handling
+        if (size <= 0) size = 20;
+        if (size > 100) size = 100;
+
+        //  base specification
+        var spec = ProductSpecification.withFiltersAndName(
+                name, category, status, minPrice, maxPrice
+        );
+
+        // cursor condition (id > cursor)
+        if (cursor != null) {
+            spec = spec.and((root, query, cb) ->
+                    cb.greaterThan(root.get("id"), cursor)
+            );
+        }
+
+        //  always sort by id ASC for cursor
+        Pageable pageable = PageRequest.of(0, size, Sort.by("id").ascending());
+
+        var page = productRepository.findAll(spec, pageable);
+
+        return page.getContent()
+                .stream()
+                .map(ProductMapper::toDto)
+                .toList();
     }
 
     @Override

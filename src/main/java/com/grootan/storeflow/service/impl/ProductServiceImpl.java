@@ -23,6 +23,10 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
+
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 @Service
 @Transactional
@@ -127,5 +131,57 @@ public class ProductServiceImpl implements ProductService {
         product.setImageUrl(imageUrl);
 
         return ProductMapper.toDto(productRepository.save(product));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ProductDto> getAllWithPagination(
+            String name,
+            String category,
+            ProductStatus status,
+            BigDecimal minPrice,
+            BigDecimal maxPrice,
+            int page,
+            int size,
+            String sort
+    ) {
+        //  handle size edge cases
+        if (size <= 0) size = 20;
+        if (size > 100) size = 100;
+
+        //  default sort
+        Sort sortObj = Sort.by("createdAt").descending();
+
+        //  parse sort param (example: price,asc)
+        if (sort != null && !sort.isBlank()) {
+            String[] parts = sort.split(",");
+            String field = parts[0];
+            String direction = parts.length > 1 ? parts[1] : "desc";
+
+            sortObj = direction.equalsIgnoreCase("asc")
+                    ? Sort.by(field).ascending()
+                    : Sort.by(field).descending();
+        }
+
+        Pageable pageable = PageRequest.of(page, size, sortObj);
+
+        return productRepository.findAll(
+                ProductSpecification.withFiltersAndName(name, category, status, minPrice, maxPrice),
+                pageable
+        ).map(ProductMapper::toDto);
+    }
+
+    @Override
+    public List<ProductDto> getAllWithCursor(String name, String category, ProductStatus status, BigDecimal minPrice, BigDecimal maxPrice, Long cursor, int size, String sort) {
+        return List.of();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ProductDto> getLowStockProducts(int threshold) {
+        return productRepository.findLowStockProducts(threshold)
+                .stream()
+                .map(ProductMapper::toDto)
+                .toList();
     }
 }

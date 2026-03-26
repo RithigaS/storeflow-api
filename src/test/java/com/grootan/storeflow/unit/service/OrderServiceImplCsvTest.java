@@ -1,12 +1,18 @@
 package com.grootan.storeflow.unit.service;
 
-import com.grootan.storeflow.entity.*;
+import com.grootan.storeflow.entity.Category;
+import com.grootan.storeflow.entity.Order;
+import com.grootan.storeflow.entity.OrderItem;
+import com.grootan.storeflow.entity.Product;
+import com.grootan.storeflow.entity.ShippingAddress;
+import com.grootan.storeflow.entity.User;
 import com.grootan.storeflow.entity.enums.OrderStatus;
 import com.grootan.storeflow.entity.enums.ProductStatus;
 import com.grootan.storeflow.entity.enums.Role;
 import com.grootan.storeflow.repository.OrderRepository;
 import com.grootan.storeflow.repository.ProductRepository;
 import com.grootan.storeflow.repository.UserRepository;
+import com.grootan.storeflow.service.NotificationService;
 import com.grootan.storeflow.service.OrderReportPdfService;
 import com.grootan.storeflow.service.impl.OrderServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,6 +36,7 @@ class OrderServiceImplCsvTest {
     private ProductRepository productRepository;
     private UserRepository userRepository;
     private OrderReportPdfService orderReportPdfService;
+    private NotificationService notificationService;
     private OrderServiceImpl orderService;
 
     @BeforeEach
@@ -38,12 +45,14 @@ class OrderServiceImplCsvTest {
         productRepository = Mockito.mock(ProductRepository.class);
         userRepository = Mockito.mock(UserRepository.class);
         orderReportPdfService = Mockito.mock(OrderReportPdfService.class);
+        notificationService = Mockito.mock(NotificationService.class);
 
         orderService = new OrderServiceImpl(
                 orderRepository,
                 productRepository,
                 userRepository,
-                orderReportPdfService
+                orderReportPdfService,
+                notificationService
         );
     }
 
@@ -127,6 +136,7 @@ class OrderServiceImplCsvTest {
         assertTrue(csv.contains("\"Laptop\""));
         assertTrue(csv.contains("\"Mouse\""));
     }
+
     @Test
     void exportOrdersAsCsvWithNoOrdersReturnsHeaderOnly() {
         User user = new User();
@@ -153,6 +163,7 @@ class OrderServiceImplCsvTest {
 
         assertTrue(csv.startsWith("orderId,orderDate,customerName,customerEmail,status,productName,quantity,unitPrice,subtotal,totalAmount"));
     }
+
     @Test
     void exportOrdersAsCsvSkipsOrdersBeforeFromDate() {
         User user = new User();

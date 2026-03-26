@@ -1,6 +1,7 @@
 package com.grootan.storeflow.service.impl;
 
 import com.grootan.storeflow.dto.CreateProductRequest;
+import com.grootan.storeflow.dto.CursorPageResponse;
 import com.grootan.storeflow.dto.ProductDto;
 import com.grootan.storeflow.dto.UpdateProductRequest;
 import com.grootan.storeflow.entity.Category;
@@ -170,10 +171,9 @@ public class ProductServiceImpl implements ProductService {
                 pageable
         ).map(ProductMapper::toDto);
     }
-
     @Override
     @Transactional(readOnly = true)
-    public List<ProductDto> getAllWithCursor(
+    public CursorPageResponse<ProductDto> getAllWithCursor(
             String name,
             String category,
             ProductStatus status,
@@ -187,27 +187,49 @@ public class ProductServiceImpl implements ProductService {
         if (size <= 0) size = 20;
         if (size > 100) size = 100;
 
-        //  base specification
+        //  base filters
         var spec = ProductSpecification.withFiltersAndName(
                 name, category, status, minPrice, maxPrice
         );
 
-        // cursor condition (id > cursor)
+        //  cursor condition (id > cursor)
         if (cursor != null) {
             spec = spec.and((root, query, cb) ->
                     cb.greaterThan(root.get("id"), cursor)
             );
         }
 
-        //  always sort by id ASC for cursor
-        Pageable pageable = PageRequest.of(0, size, Sort.by("id").ascending());
+        //  fetch size + 1 (to check hasMore)
+        Pageable pageable = PageRequest.of(0, size + 1, Sort.by("id").ascending());
 
         var page = productRepository.findAll(spec, pageable);
+        var products = page.getContent();
 
-        return page.getContent()
-                .stream()
+        //  check hasMore
+        boolean hasMore = products.size() > size;
+
+        //  trim extra record
+        if (hasMore) {
+            products = products.subList(0, size);
+        }
+
+        //  nextCursor (last item's id)
+        Long nextCursor = null;
+        if (!products.isEmpty()) {
+            nextCursor = products.get(products.size() - 1).getId();
+        }
+
+        //  map to DTO
+        var dtoList = products.stream()
                 .map(ProductMapper::toDto)
                 .toList();
+
+        return new CursorPageResponse<>(
+                dtoList,
+                nextCursor,
+                hasMore,
+                dtoList.size()
+        );
     }
 
     @Override

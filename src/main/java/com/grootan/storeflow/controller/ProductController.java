@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/products")
@@ -112,5 +113,44 @@ public class ProductController {
                                 .toString()
                 )
                 .body(resource);
+    }
+
+    @GetMapping("/products/paginated")
+    public Page<ProductDto> getProductsWithPagination(
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) ProductStatus status,
+            @RequestParam(required = false) BigDecimal minPrice,
+            @RequestParam(required = false) BigDecimal maxPrice,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String sort
+    ) {
+        return productService.getAllWithPagination(
+                name, category, status, minPrice, maxPrice, page, size, sort
+        );
+    }
+
+    @GetMapping("/products/cursor")
+    public CursorPageResponse<ProductDto> getProductsWithCursor(
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) ProductStatus status,
+            @RequestParam(required = false) BigDecimal minPrice,
+            @RequestParam(required = false) BigDecimal maxPrice,
+            @RequestParam(required = false) Long cursor,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String sort
+    ) {
+        return productService.getAllWithCursor(
+                name, category, status, minPrice, maxPrice, cursor, size, sort
+        );
+    }
+
+    @GetMapping("/admin/products/low-stock")
+    public List<ProductDto> getLowStockProducts(
+            @RequestParam(defaultValue = "10") int threshold
+    ) {
+        return productService.getLowStockProducts(threshold);
     }
 }

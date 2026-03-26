@@ -15,7 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-
+import com.grootan.storeflow.dto.OffsetPageResponse;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.file.Files;
@@ -114,9 +114,8 @@ public class ProductController {
                 )
                 .body(resource);
     }
-
     @GetMapping("/products/paginated")
-    public Page<ProductDto> getProductsWithPagination(
+    public OffsetPageResponse<ProductDto> getProductsWithPagination(
             @RequestParam(required = false) String name,
             @RequestParam(required = false) String category,
             @RequestParam(required = false) ProductStatus status,
@@ -126,11 +125,12 @@ public class ProductController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String sort
     ) {
-        return productService.getAllWithPagination(
+        var result = productService.getAllWithPagination(
                 name, category, status, minPrice, maxPrice, page, size, sort
         );
-    }
 
+        return new OffsetPageResponse<>(result);
+    }
     @GetMapping("/products/cursor")
     public CursorPageResponse<ProductDto> getProductsWithCursor(
             @RequestParam(required = false) String name,

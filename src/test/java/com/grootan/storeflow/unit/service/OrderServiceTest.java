@@ -3,23 +3,18 @@ package com.grootan.storeflow.unit.service;
 import com.grootan.storeflow.dto.CreateOrderItemRequest;
 import com.grootan.storeflow.dto.CreateOrderRequest;
 import com.grootan.storeflow.dto.OrderDto;
-import com.grootan.storeflow.entity.Order;
-import com.grootan.storeflow.entity.OrderItem;
-import com.grootan.storeflow.entity.Product;
-import com.grootan.storeflow.entity.ShippingAddress;
-import com.grootan.storeflow.entity.User;
+import com.grootan.storeflow.entity.*;
 import com.grootan.storeflow.entity.enums.OrderStatus;
-import com.grootan.storeflow.exception.InsufficientStockException;
-import com.grootan.storeflow.exception.InvalidStatusTransitionException;
-import com.grootan.storeflow.exception.ResourceNotFoundException;
+import com.grootan.storeflow.exception.*;
 import com.grootan.storeflow.repository.OrderRepository;
 import com.grootan.storeflow.repository.ProductRepository;
 import com.grootan.storeflow.repository.UserRepository;
+import com.grootan.storeflow.service.NotificationService;
+import com.grootan.storeflow.service.OrderReportPdfService;
 import com.grootan.storeflow.service.impl.OrderServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -42,7 +37,12 @@ class OrderServiceTest {
     @Mock
     private UserRepository userRepository;
 
-    @InjectMocks
+    @Mock
+    private NotificationService notificationService;
+
+    @Mock
+    private OrderReportPdfService orderReportPdfService;
+
     private OrderServiceImpl orderService;
 
     private User user;
@@ -52,6 +52,16 @@ class OrderServiceTest {
 
     @BeforeEach
     void setUp() {
+
+        // ✅ MANUAL INJECTION (FIX)
+        orderService = new OrderServiceImpl(
+                orderRepository,
+                productRepository,
+                userRepository,
+                orderReportPdfService,
+                notificationService
+        );
+
         user = new User();
         user.setId(1L);
         user.setEmail("user@grootan.com");
@@ -77,6 +87,7 @@ class OrderServiceTest {
         request.setPostalCode("641001");
         request.setItems(List.of(item));
     }
+
 
     @Test
     void placeOrderShouldThrowWhenUserNotFound() {

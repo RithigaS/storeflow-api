@@ -17,8 +17,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -43,6 +41,7 @@ class OrderServiceImplTest {
         orderReportPdfService = mock(OrderReportPdfService.class);
         notificationService = mock(NotificationService.class);
 
+
         orderService = new OrderServiceImpl(
                 orderRepository,
                 productRepository,
@@ -50,7 +49,7 @@ class OrderServiceImplTest {
                 orderReportPdfService,
                 notificationService
         );
-    } // ✅ FIXED (missing bracket added)
+    }
 
     @Test
     void getOrdersAsAdminUsesFindAllBranch() {
@@ -69,10 +68,8 @@ class OrderServiceImplTest {
         when(userRepository.findByEmailIgnoreCase("missing@test.com"))
                 .thenReturn(Optional.empty());
 
-        assertThrows(
-                ResourceNotFoundException.class,
-                () -> orderService.getOrders("missing@test.com", false)
-        );
+        assertThrows(ResourceNotFoundException.class,
+                () -> orderService.getOrders("missing@test.com", false));
     }
 
     @Test
@@ -83,6 +80,7 @@ class OrderServiceImplTest {
         OrderDto result = orderService.getOrderById(1002L, "admin@test.com", true);
 
         assertNotNull(result);
+        assertEquals(1002L, result.id());
     }
 
     @Test
@@ -92,13 +90,17 @@ class OrderServiceImplTest {
         when(orderRepository.findWithDetailsById(1010L)).thenReturn(Optional.of(order));
         when(orderRepository.save(order)).thenReturn(order);
 
-        orderService.updateStatus(1010L, OrderStatus.SHIPPED);
+        OrderDto result = orderService.updateStatus(1010L, OrderStatus.SHIPPED);
 
-        verify(notificationService).sendOrderStatusUpdate(
-                eq(1010L),
-                eq(order.getCustomer().getId()),
-                any()
-        );
+        assertEquals("SHIPPED", result.status().name());
+
+
+        verify(notificationService, times(1))
+                .sendOrderStatusUpdate(
+                        eq(1010L),
+                        eq(order.getCustomer().getId()),
+                        any()
+                );
     }
 
     @Test
@@ -106,11 +108,10 @@ class OrderServiceImplTest {
         Order order = buildOrder(1012L, "user@test.com", "User", OrderStatus.CANCELLED);
         when(orderRepository.findWithDetailsById(1012L)).thenReturn(Optional.of(order));
 
-        assertThrows(
-                InvalidStatusTransitionException.class,
-                () -> orderService.updateStatus(1012L, OrderStatus.CONFIRMED)
-        );
+        assertThrows(InvalidStatusTransitionException.class,
+                () -> orderService.updateStatus(1012L, OrderStatus.CONFIRMED));
     }
+
 
     private Order buildOrder(Long orderId, String email, String fullName, OrderStatus status) {
         User user = new User();

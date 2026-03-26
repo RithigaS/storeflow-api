@@ -7,25 +7,13 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: create-drop
 
   flyway:
-    enabled: true
-    baseline-on-migrate: true
-
-
+    enabled: false
 
   web:
     resources:
       add-mappings: false
 
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info
-
-  endpoint:
-    health:
-      show-details: always
 

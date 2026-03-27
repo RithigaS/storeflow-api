@@ -15,11 +15,15 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -38,7 +42,6 @@ class ProductServiceTest {
     @Mock
     private FileStorageService fileStorageService;
 
-    @InjectMocks
     private ProductServiceImpl productService;
 
     private CreateProductRequest request;
@@ -47,6 +50,12 @@ class ProductServiceTest {
 
     @BeforeEach
     void setUp() {
+        productService = new ProductServiceImpl(
+                productRepository,
+                categoryRepository,
+                fileStorageService
+        );
+
         request = new CreateProductRequest();
         request.setName("Laptop");
         request.setDescription("Gaming laptop");
@@ -160,7 +169,6 @@ class ProductServiceTest {
         var result = productService.update(5L, updateRequest);
 
         assertNotNull(result);
-
         assertEquals("Updated Laptop", product.getName());
         assertEquals("Updated description", product.getDescription());
         assertEquals("LAP-002", product.getSku());
@@ -225,6 +233,7 @@ class ProductServiceTest {
         assertEquals(8, product.getStockQuantity());
         assertEquals(ProductStatus.ACTIVE, product.getStatus());
     }
+
     @Test
     void adjustStockShouldSetOutOfStockWhenStockBecomesZero() {
         Product product = new Product();
@@ -287,5 +296,156 @@ class ProductServiceTest {
 
         verify(productRepository, never()).save(any(Product.class));
         verify(productRepository, never()).delete(any(Product.class));
+    }
+
+    @Test
+    void getAllWithPaginationShouldHandleSizeEdgeCasesAndDefaultSort() {
+        when(productRepository.findAll(
+                Mockito.<Specification<Product>>any(),
+                any(Pageable.class)
+        )).thenReturn(new PageImpl<>(List.of()));
+
+        productService.getAllWithPagination(null, null, null, null, null, 0, 0, null);
+        productService.getAllWithPagination(null, null, null, null, null, 0, 200, null);
+
+        verify(productRepository, times(2)).findAll(
+                Mockito.<Specification<Product>>any(),
+                any(Pageable.class)
+        );
+    }
+
+    @Test
+    void getAllWithPaginationShouldHandleSortAscAndDesc() {
+        when(productRepository.findAll(
+                Mockito.<Specification<Product>>any(),
+                any(Pageable.class)
+        )).thenReturn(new PageImpl<>(List.of()));
+
+        productService.getAllWithPagination(null, null, null, null, null, 0, 10, "price,asc");
+        productService.getAllWithPagination(null, null, null, null, null, 0, 10, "name,desc");
+
+        verify(productRepository, times(2)).findAll(
+                Mockito.<Specification<Product>>any(),
+                any(Pageable.class)
+        );
+    }
+
+    @Test
+    void getAllWithCursorShouldHandleNullCursor() {
+        when(productRepository.findAll(
+                Mockito.<Specification<Product>>any(),
+                any(Pageable.class)
+        )).thenReturn(new PageImpl<>(List.of()));
+
+        var result = productService.getAllWithCursor(
+                null, null, null, null, null,
+                null, 5, null
+        );
+
+        assertNotNull(result);
+        assertFalse(result.isHasMore());
+        assertNull(result.getNextCursor());
+        assertEquals(0, result.getSize());
+    }
+
+    @Test
+    void getAllWithCursorShouldHandleNonNullCursorAndHasMore() {
+        Product p1 = new Product();
+        p1.setId(1L);
+        p1.setName("P1");
+        p1.setCategory(category);
+        p1.setPrice(BigDecimal.valueOf(100));
+        p1.setStockQuantity(5);
+        p1.setStatus(ProductStatus.ACTIVE);
+
+        Product p2 = new Product();
+        p2.setId(2L);
+        p2.setName("P2");
+        p2.setCategory(category);
+        p2.setPrice(BigDecimal.valueOf(200));
+        p2.setStockQuantity(5);
+        p2.setStatus(ProductStatus.ACTIVE);
+
+        when(productRepository.findAll(
+                Mockito.<Specification<Product>>any(),
+                any(Pageable.class)
+        )).thenReturn(new PageImpl<>(List.of(p1, p2)));
+
+        var result = productService.getAllWithCursor(
+                null, null, null, null, null,
+                1L, 1, null
+        );
+
+        assertTrue(result.isHasMore());
+        assertEquals(1, result.getSize());
+        assertEquals(1L, result.getNextCursor());
+    }
+
+    @Test
+    void getAllWithCursorShouldHandleNoMoreData() {
+        Product p1 = new Product();
+        p1.setId(1L);
+        p1.setName("P1");
+        p1.setCategory(category);
+        p1.setPrice(BigDecimal.valueOf(100));
+        p1.setStockQuantity(5);
+        p1.setStatus(ProductStatus.ACTIVE);
+
+        when(productRepository.findAll(
+                Mockito.<Specification<Product>>any(),
+                any(Pageable.class)
+        )).thenReturn(new PageImpl<>(List.of(p1)));
+
+        var result = productService.getAllWithCursor(
+                null, null, null, null, null,
+                null, 5, null
+        );
+
+        assertFalse(result.isHasMore());
+        assertEquals(1, result.getSize());
+        assertEquals(1L, result.getNextCursor());
+    }
+
+    @Test
+    void getAllWithCursorShouldHandleEmptyList() {
+        when(productRepository.findAll(
+                Mockito.<Specification<Product>>any(),
+                any(Pageable.class)
+        )).thenReturn(new PageImpl<>(List.of()));
+
+        var result = productService.getAllWithCursor(
+                null, null, null, null, null,
+                null, 5, null
+        );
+
+        assertFalse(result.isHasMore());
+        assertNull(result.getNextCursor());
+        assertEquals(0, result.getSize());
+    }
+
+    @Test
+    void getLowStockProductsShouldReturnList() {
+        Product p = new Product();
+        p.setId(1L);
+        p.setName("Low Stock");
+        p.setCategory(category);
+        p.setPrice(BigDecimal.valueOf(100));
+        p.setStockQuantity(2);
+        p.setStatus(ProductStatus.ACTIVE);
+
+        when(productRepository.findLowStockProducts(5)).thenReturn(List.of(p));
+
+        var result = productService.getLowStockProducts(5);
+
+        assertEquals(1, result.size());
+    }
+
+    @Test
+    void getLowStockProductsShouldReturnEmptyList() {
+        when(productRepository.findLowStockProducts(5)).thenReturn(List.of());
+
+        var result = productService.getLowStockProducts(5);
+
+        assertTrue(result.isEmpty());
     }
 }

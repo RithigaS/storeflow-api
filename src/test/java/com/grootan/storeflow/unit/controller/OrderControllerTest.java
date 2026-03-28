@@ -8,69 +8,77 @@ import com.grootan.storeflow.entity.enums.OrderStatus;
 import com.grootan.storeflow.service.OrderService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 
 import java.security.Principal;
+import java.time.LocalDate;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-@ExtendWith(MockitoExtension.class)
 class OrderControllerTest {
 
-    @Mock
     private OrderService orderService;
-
-    @InjectMocks
     private OrderController orderController;
-
-    private OrderDto orderDto;
 
     @BeforeEach
     void setUp() {
-        orderDto = new OrderDto(
-                1L,
-                "ORD-123",
-                OrderStatus.PENDING,
-                java.math.BigDecimal.valueOf(1000),
-                "user@test.com",
-                List.of()
-        );
+        orderService = mock(OrderService.class);
+        orderController = new OrderController(orderService);
     }
 
     @Test
-    void placeOrderShouldUseFallbackEmailWhenPrincipalIsNull() {
-        CreateOrderRequest request = new CreateOrderRequest();
+    void placeOrderShouldUsePrincipalEmailWhenPrincipalPresent() {
+        CreateOrderRequest request = mock(CreateOrderRequest.class);
+        OrderDto orderDto = mock(OrderDto.class);
+        Principal principal = () -> "user@test.com";
+
         when(orderService.placeOrder(request, "user@test.com")).thenReturn(orderDto);
 
-        OrderDto result = orderController.placeOrder(request, null);
+        OrderDto result = orderController.placeOrder(request, principal);
 
-        assertNotNull(result);
-        assertEquals("user@test.com", result.customerEmail());
+        assertSame(orderDto, result);
         verify(orderService).placeOrder(request, "user@test.com");
     }
 
     @Test
-    void placeOrderShouldUsePrincipalNameWhenPrincipalExists() {
-        CreateOrderRequest request = new CreateOrderRequest();
-        Principal principal = () -> "realuser@test.com";
+    void placeOrderShouldUseFallbackEmailWhenPrincipalIsNull() {
+        CreateOrderRequest request = mock(CreateOrderRequest.class);
+        OrderDto orderDto = mock(OrderDto.class);
 
-        when(orderService.placeOrder(request, "realuser@test.com")).thenReturn(orderDto);
+        when(orderService.placeOrder(request, "user@test.com")).thenReturn(orderDto);
 
-        OrderDto result = orderController.placeOrder(request, principal);
+        OrderDto result = orderController.placeOrder(request, null);
 
-        assertNotNull(result);
-        verify(orderService).placeOrder(request, "realuser@test.com");
+        assertSame(orderDto, result);
+        verify(orderService).placeOrder(request, "user@test.com");
     }
 
     @Test
-    void getOrdersShouldUseFallbackEmailAndAdminFalseWhenPrincipalIsNull() {
-        when(orderService.getOrders("user@test.com", false)).thenReturn(List.of(orderDto));
+    void getOrdersShouldUsePrincipalEmailWhenPrincipalPresent() {
+        OrderDto order1 = mock(OrderDto.class);
+        OrderDto order2 = mock(OrderDto.class);
+        Principal principal = () -> "admin@test.com";
+
+        when(orderService.getOrders("admin@test.com", true))
+                .thenReturn(List.of(order1, order2));
+
+        List<OrderDto> result = orderController.getOrders(true, principal);
+
+        assertEquals(2, result.size());
+        verify(orderService).getOrders("admin@test.com", true);
+    }
+
+    @Test
+    void getOrdersShouldUseFallbackEmailWhenPrincipalIsNull() {
+        OrderDto orderDto = mock(OrderDto.class);
+
+        when(orderService.getOrders("user@test.com", false))
+                .thenReturn(List.of(orderDto));
 
         List<OrderDto> result = orderController.getOrders(false, null);
 
@@ -79,35 +87,28 @@ class OrderControllerTest {
     }
 
     @Test
-    void getOrdersShouldPassPrincipalEmailAndAdminTrue() {
-        Principal principal = () -> "admin@test.com";
-        when(orderService.getOrders("admin@test.com", true)).thenReturn(List.of(orderDto));
+    void getByIdShouldUsePrincipalEmailWhenPrincipalPresent() {
+        OrderDto orderDto = mock(OrderDto.class);
+        Principal principal = () -> "user@test.com";
 
-        List<OrderDto> result = orderController.getOrders(true, principal);
+        when(orderService.getOrderById(10L, "user@test.com", false)).thenReturn(orderDto);
 
-        assertEquals(1, result.size());
-        verify(orderService).getOrders("admin@test.com", true);
+        OrderDto result = orderController.getById(10L, false, principal);
+
+        assertSame(orderDto, result);
+        verify(orderService).getOrderById(10L, "user@test.com", false);
     }
 
     @Test
     void getByIdShouldUseFallbackEmailWhenPrincipalIsNull() {
-        when(orderService.getOrderById(1L, "user@test.com", false)).thenReturn(orderDto);
+        OrderDto orderDto = mock(OrderDto.class);
 
-        OrderDto result = orderController.getById(1L, false, null);
+        when(orderService.getOrderById(11L, "user@test.com", true)).thenReturn(orderDto);
 
-        assertNotNull(result);
-        verify(orderService).getOrderById(1L, "user@test.com", false);
-    }
+        OrderDto result = orderController.getById(11L, true, null);
 
-    @Test
-    void getByIdShouldUsePrincipalEmailAndAdminTrue() {
-        Principal principal = () -> "admin@test.com";
-        when(orderService.getOrderById(1L, "admin@test.com", true)).thenReturn(orderDto);
-
-        OrderDto result = orderController.getById(1L, true, principal);
-
-        assertNotNull(result);
-        verify(orderService).getOrderById(1L, "admin@test.com", true);
+        assertSame(orderDto, result);
+        verify(orderService).getOrderById(11L, "user@test.com", true);
     }
 
     @Test
@@ -115,21 +116,105 @@ class OrderControllerTest {
         OrderStatusUpdateRequest request = new OrderStatusUpdateRequest();
         request.setStatus(OrderStatus.CONFIRMED);
 
-        OrderDto confirmedOrder = new OrderDto(
-                1L,
-                "ORD-123",
-                OrderStatus.CONFIRMED,
-                java.math.BigDecimal.valueOf(1000),
-                "user@test.com",
-                List.of()
+        OrderDto orderDto = mock(OrderDto.class);
+        when(orderService.updateStatus(15L, OrderStatus.CONFIRMED)).thenReturn(orderDto);
+
+        OrderDto result = orderController.updateStatus(15L, request);
+
+        assertSame(orderDto, result);
+        verify(orderService).updateStatus(15L, OrderStatus.CONFIRMED);
+    }
+
+    @Test
+    void downloadOrderReportShouldReturnPdfResponseWhenPrincipalPresent() {
+        byte[] pdfBytes = new byte[]{1, 2, 3, 4};
+        Principal principal = () -> "user@test.com";
+
+        when(orderService.generateOrderReport(20L, "user@test.com", false)).thenReturn(pdfBytes);
+
+        ResponseEntity<ByteArrayResource> response =
+                orderController.downloadOrderReport(20L, false, principal);
+
+        assertEquals(200, response.getStatusCode().value());
+        assertEquals(MediaType.APPLICATION_PDF, response.getHeaders().getContentType());
+        assertNotNull(response.getBody());
+        assertArrayEquals(pdfBytes, response.getBody().getByteArray());
+
+        String disposition = response.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION);
+        assertNotNull(disposition);
+        assertTrue(disposition.contains("order-20.pdf"));
+
+        verify(orderService).generateOrderReport(20L, "user@test.com", false);
+    }
+
+    @Test
+    void downloadOrderReportShouldUseFallbackEmailWhenPrincipalIsNull() {
+        byte[] pdfBytes = new byte[]{9, 8, 7};
+
+        when(orderService.generateOrderReport(21L, "user@test.com", true)).thenReturn(pdfBytes);
+
+        ResponseEntity<ByteArrayResource> response =
+                orderController.downloadOrderReport(21L, true, null);
+
+        assertEquals(200, response.getStatusCode().value());
+        assertEquals(MediaType.APPLICATION_PDF, response.getHeaders().getContentType());
+        assertNotNull(response.getBody());
+        assertArrayEquals(pdfBytes, response.getBody().getByteArray());
+
+        verify(orderService).generateOrderReport(21L, "user@test.com", true);
+    }
+
+    @Test
+    void exportOrdersShouldReturnCsvResponseWhenPrincipalPresent() {
+        byte[] csvBytes = "id,name\n1,Order".getBytes();
+        Principal principal = () -> "admin@test.com";
+
+        when(orderService.exportOrdersAsCsv(
+                LocalDate.of(2026, 3, 1),
+                LocalDate.of(2026, 3, 31),
+                "admin@test.com",
+                true
+        )).thenReturn(csvBytes);
+
+        ResponseEntity<ByteArrayResource> response = orderController.exportOrders(
+                LocalDate.of(2026, 3, 1),
+                LocalDate.of(2026, 3, 31),
+                true,
+                principal
         );
 
-        when(orderService.updateStatus(1L, OrderStatus.CONFIRMED)).thenReturn(confirmedOrder);
+        assertEquals(200, response.getStatusCode().value());
+        assertEquals("text/csv", response.getHeaders().getContentType().toString());
+        assertNotNull(response.getBody());
+        assertArrayEquals(csvBytes, response.getBody().getByteArray());
 
-        OrderDto result = orderController.updateStatus(1L, request);
+        String disposition = response.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION);
+        assertNotNull(disposition);
+        assertTrue(disposition.contains("orders.csv"));
 
-        assertNotNull(result);
-        assertEquals(OrderStatus.CONFIRMED, result.status());
-        verify(orderService).updateStatus(1L, OrderStatus.CONFIRMED);
+        verify(orderService).exportOrdersAsCsv(
+                LocalDate.of(2026, 3, 1),
+                LocalDate.of(2026, 3, 31),
+                "admin@test.com",
+                true
+        );
+    }
+
+    @Test
+    void exportOrdersShouldUseFallbackEmailWhenPrincipalIsNull() {
+        byte[] csvBytes = "id,name\n2,Order".getBytes();
+
+        when(orderService.exportOrdersAsCsv(null, null, "user@test.com", false))
+                .thenReturn(csvBytes);
+
+        ResponseEntity<ByteArrayResource> response =
+                orderController.exportOrders(null, null, false, null);
+
+        assertEquals(200, response.getStatusCode().value());
+        assertEquals("text/csv", response.getHeaders().getContentType().toString());
+        assertNotNull(response.getBody());
+        assertArrayEquals(csvBytes, response.getBody().getByteArray());
+
+        verify(orderService).exportOrdersAsCsv(null, null, "user@test.com", false);
     }
 }

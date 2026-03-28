@@ -86,7 +86,10 @@ public class SecurityConfig {
                                 "/api/auth/reset-password/**"
                         ).permitAll()
 
-                        .requestMatchers("/actuator/**").permitAll()
+                        //  Phase 8: Actuator Security
+                        .requestMatchers("/actuator/health").permitAll()
+                        .requestMatchers("/actuator/**").hasRole("ADMIN")
+
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
 
                         .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll()

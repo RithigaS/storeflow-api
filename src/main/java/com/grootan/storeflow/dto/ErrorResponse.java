@@ -1,17 +1,48 @@
 package com.grootan.storeflow.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.Map;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
+@Schema(description = "Standard error response returned by the API")
 public class ErrorResponse {
 
+    @Schema(
+            description = "Timestamp when the error occurred",
+            example = "2026-03-28T14:30:45"
+    )
     private String timestamp;
+
+    @Schema(
+            description = "HTTP status code",
+            example = "400"
+    )
     private int status;
+
+    @Schema(
+            description = "HTTP error name",
+            example = "Bad Request"
+    )
     private String error;
+
+    @Schema(
+            description = "Main error message",
+            example = "Validation failed"
+    )
     private String message;
+
+    @Schema(
+            description = "API path where the error occurred",
+            example = "/api/products"
+    )
     private String path;
+
+    @Schema(
+            description = "Field-level validation errors",
+            example = "{\"name\":\"Product name is required\",\"price\":\"Price must be a positive value\"}"
+    )
     private Map<String, String> errors;
 
     public ErrorResponse() {

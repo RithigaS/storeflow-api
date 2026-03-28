@@ -54,6 +54,7 @@ public class OrderServiceImpl implements OrderService {
     @Value("${app.stock.low-threshold:5}")
     private int lowStockThreshold;
 
+    // ✅ Main constructor (used by Spring)
     public OrderServiceImpl(
             OrderRepository orderRepository,
             ProductRepository productRepository,
@@ -70,13 +71,31 @@ public class OrderServiceImpl implements OrderService {
         this.notificationService = notificationService;
         this.emailService = emailService;
 
-        this.orderCounter = meterRegistry.counter("order_placed_total");
-        this.revenueCounter = meterRegistry.counter("order_revenue_total");
+        if (meterRegistry != null) {
+            this.orderCounter = meterRegistry.counter("order_placed_total");
+            this.revenueCounter = meterRegistry.counter("order_revenue_total");
 
-        Gauge.builder("order_value_avg", this, service -> {
-            if (service.totalOrders == 0) return 0;
-            return service.totalOrderValue / service.totalOrders;
-        }).register(meterRegistry);
+            Gauge.builder("order_value_avg", this, service -> {
+                if (service.totalOrders == 0) return 0;
+                return service.totalOrderValue / service.totalOrders;
+            }).register(meterRegistry);
+        } else {
+            this.orderCounter = null;
+            this.revenueCounter = null;
+        }
+    }
+
+    // ✅ Backward compatible constructor (for tests)
+    public OrderServiceImpl(
+            OrderRepository orderRepository,
+            ProductRepository productRepository,
+            UserRepository userRepository,
+            OrderReportPdfService orderReportPdfService,
+            NotificationService notificationService
+    ) {
+        this(orderRepository, productRepository, userRepository,
+                orderReportPdfService, notificationService,
+                null, null);
     }
 
     @Override
@@ -118,12 +137,18 @@ public class OrderServiceImpl implements OrderService {
         order.recalculateTotalAmount();
         Order savedOrder = orderRepository.save(order);
 
-        // Phase 8 Metrics
-        orderCounter.increment();
+        // ✅ Metrics (safe)
+        if (orderCounter != null) {
+            orderCounter.increment();
+        }
 
         if (savedOrder.getTotalAmount() != null) {
             double value = savedOrder.getTotalAmount().doubleValue();
-            revenueCounter.increment(value);
+
+            if (revenueCounter != null) {
+                revenueCounter.increment(value);
+            }
+
             totalOrderValue += value;
             totalOrders++;
         }
@@ -215,8 +240,7 @@ public class OrderServiceImpl implements OrderService {
         }
 
         StringBuilder csv = new StringBuilder();
-        csv.append("orderId,orderDate,customerName,customerEmail,status,productName,quantity,unitPrice,subtotal,totalAmount")
-                .append("\n");
+        csv.append("orderId,orderDate,customerName,customerEmail,status,productName,quantity,unitPrice,subtotal,totalAmount\n");
 
         for (Order order : orders) {
             LocalDate orderDate = order.getCreatedAt() != null ? order.getCreatedAt().toLocalDate() : null;

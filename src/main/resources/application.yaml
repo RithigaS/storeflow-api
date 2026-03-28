@@ -93,6 +93,9 @@ app:
     from: no-reply@storeflow.local
     frontend-base-url: http://localhost:3000
 
+
+    admin-recipients: admin@storeflow.local
+
   stock:
     low-threshold: 5
 

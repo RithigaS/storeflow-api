@@ -4,7 +4,11 @@ import com.grootan.storeflow.dto.CreateOrderItemRequest;
 import com.grootan.storeflow.dto.CreateOrderRequest;
 import com.grootan.storeflow.dto.NotificationPayload;
 import com.grootan.storeflow.dto.OrderDto;
-import com.grootan.storeflow.entity.*;
+import com.grootan.storeflow.entity.Order;
+import com.grootan.storeflow.entity.OrderItem;
+import com.grootan.storeflow.entity.Product;
+import com.grootan.storeflow.entity.ShippingAddress;
+import com.grootan.storeflow.entity.User;
 import com.grootan.storeflow.entity.enums.OrderStatus;
 import com.grootan.storeflow.exception.InsufficientStockException;
 import com.grootan.storeflow.exception.InvalidStatusTransitionException;
@@ -13,14 +17,18 @@ import com.grootan.storeflow.mapper.OrderMapper;
 import com.grootan.storeflow.repository.OrderRepository;
 import com.grootan.storeflow.repository.ProductRepository;
 import com.grootan.storeflow.repository.UserRepository;
+import com.grootan.storeflow.service.EmailService;
 import com.grootan.storeflow.service.NotificationService;
 import com.grootan.storeflow.service.OrderReportPdfService;
 import com.grootan.storeflow.service.OrderService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -32,19 +40,25 @@ public class OrderServiceImpl implements OrderService {
     private final UserRepository userRepository;
     private final OrderReportPdfService orderReportPdfService;
     private final NotificationService notificationService;
+    private final EmailService emailService;
+
+    @Value("${app.stock.low-threshold:5}")
+    private int lowStockThreshold;
 
     public OrderServiceImpl(
             OrderRepository orderRepository,
             ProductRepository productRepository,
             UserRepository userRepository,
             OrderReportPdfService orderReportPdfService,
-            NotificationService notificationService
+            NotificationService notificationService,
+            EmailService emailService
     ) {
         this.orderRepository = orderRepository;
         this.productRepository = productRepository;
         this.userRepository = userRepository;
         this.orderReportPdfService = orderReportPdfService;
-        this.notificationService = notificationService; // ✅ ADD
+        this.notificationService = notificationService;
+        this.emailService = emailService;
     }
 
     @Override
@@ -55,7 +69,10 @@ public class OrderServiceImpl implements OrderService {
         Order order = new Order();
         order.setCustomer(user);
         order.setShippingAddress(new ShippingAddress(
-                request.getStreet(), request.getCity(), request.getCountry(), request.getPostalCode()
+                request.getStreet(),
+                request.getCity(),
+                request.getCountry(),
+                request.getPostalCode()
         ));
 
         for (CreateOrderItemRequest reqItem : request.getItems()) {
@@ -74,16 +91,23 @@ public class OrderServiceImpl implements OrderService {
             item.setUnitPrice(product.getPrice());
             item.calculateSubtotal();
             order.addOrderItem(item);
+
+            if (product.getStockQuantity() < lowStockThreshold) {
+                emailService.sendLowStockAlert(product.getName(), product.getStockQuantity());
+            }
         }
 
         order.recalculateTotalAmount();
-        return OrderMapper.toDto(orderRepository.save(order));
+        Order savedOrder = orderRepository.save(order);
+
+        return OrderMapper.toDto(savedOrder);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<OrderDto> getOrders(String userEmail, boolean isAdmin) {
         List<Order> orders;
+
         if (isAdmin) {
             orders = orderRepository.findAll();
         } else {
@@ -91,7 +115,10 @@ public class OrderServiceImpl implements OrderService {
                     .orElseThrow(() -> new ResourceNotFoundException("User not found"));
             orders = orderRepository.findByCustomer(user);
         }
-        return orders.stream().map(OrderMapper::toDto).toList();
+
+        return orders.stream()
+                .map(OrderMapper::toDto)
+                .toList();
     }
 
     @Override
@@ -103,6 +130,7 @@ public class OrderServiceImpl implements OrderService {
         if (!isAdmin && !order.getCustomer().getEmail().equalsIgnoreCase(userEmail)) {
             throw new ResourceNotFoundException("Order not found");
         }
+
         return OrderMapper.toDto(order);
     }
 
@@ -118,11 +146,10 @@ public class OrderServiceImpl implements OrderService {
         order.setStatus(status);
         Order saved = orderRepository.save(order);
 
-        //  SEND WEBSOCKET NOTIFICATION
         NotificationPayload payload = new NotificationPayload(
                 "Order status updated",
                 status.name(),
-                java.time.LocalDateTime.now()
+                LocalDateTime.now()
         );
 
         notificationService.sendOrderStatusUpdate(
@@ -130,6 +157,11 @@ public class OrderServiceImpl implements OrderService {
                 saved.getCustomer().getId(),
                 payload
         );
+
+        if (status == OrderStatus.CONFIRMED) {
+            String orderSummary = buildOrderSummary(saved);
+            emailService.sendOrderConfirmationEmail(saved.getCustomer().getEmail(), orderSummary);
+        }
 
         return OrderMapper.toDto(saved);
     }
@@ -194,6 +226,35 @@ public class OrderServiceImpl implements OrderService {
         }
 
         return order;
+    }
+
+    private String buildOrderSummary(Order order) {
+        StringBuilder summary = new StringBuilder();
+
+        summary.append("Order ID: ").append(order.getId()).append("\n");
+        summary.append("Customer: ").append(order.getCustomer().getFullName()).append("\n");
+        summary.append("Status: ").append(order.getStatus().name()).append("\n");
+        summary.append("Items:\n");
+
+        for (OrderItem item : order.getOrderItems()) {
+            summary.append("- ")
+                    .append(item.getProduct().getName())
+                    .append(" | Qty: ")
+                    .append(item.getQuantity())
+                    .append(" | Unit Price: ")
+                    .append(formatAmount(item.getUnitPrice()))
+                    .append(" | Subtotal: ")
+                    .append(formatAmount(item.getSubtotal()))
+                    .append("\n");
+        }
+
+        summary.append("Total Amount: ").append(formatAmount(order.getTotalAmount()));
+
+        return summary.toString();
+    }
+
+    private String formatAmount(BigDecimal amount) {
+        return amount != null ? amount.toPlainString() : "0";
     }
 
     private String escapeCsv(String value) {

@@ -16,4 +16,34 @@ spring:
     resources:
       add-mappings: false
 
+  mail:
+    host: localhost
+    port: 3025
+    username:
+    password:
+    properties:
+      mail:
+        smtp:
+          auth: false
+          starttls:
+            enable: false
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+
+app:
+  mail:
+    from: test@storeflow.local
+    frontend-base-url: http://localhost:3000
+  stock:
+    low-threshold: 5
+  digest:
+    enabled: false
+  logging:
+    trace-id-header: X-Trace-Id

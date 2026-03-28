@@ -21,6 +21,9 @@ import com.grootan.storeflow.service.EmailService;
 import com.grootan.storeflow.service.NotificationService;
 import com.grootan.storeflow.service.OrderReportPdfService;
 import com.grootan.storeflow.service.OrderService;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,6 +45,12 @@ public class OrderServiceImpl implements OrderService {
     private final NotificationService notificationService;
     private final EmailService emailService;
 
+    private final Counter orderCounter;
+    private final Counter revenueCounter;
+
+    private double totalOrderValue = 0;
+    private long totalOrders = 0;
+
     @Value("${app.stock.low-threshold:5}")
     private int lowStockThreshold;
 
@@ -51,7 +60,8 @@ public class OrderServiceImpl implements OrderService {
             UserRepository userRepository,
             OrderReportPdfService orderReportPdfService,
             NotificationService notificationService,
-            EmailService emailService
+            EmailService emailService,
+            MeterRegistry meterRegistry
     ) {
         this.orderRepository = orderRepository;
         this.productRepository = productRepository;
@@ -59,6 +69,14 @@ public class OrderServiceImpl implements OrderService {
         this.orderReportPdfService = orderReportPdfService;
         this.notificationService = notificationService;
         this.emailService = emailService;
+
+        this.orderCounter = meterRegistry.counter("order_placed_total");
+        this.revenueCounter = meterRegistry.counter("order_revenue_total");
+
+        Gauge.builder("order_value_avg", this, service -> {
+            if (service.totalOrders == 0) return 0;
+            return service.totalOrderValue / service.totalOrders;
+        }).register(meterRegistry);
     }
 
     @Override
@@ -99,6 +117,16 @@ public class OrderServiceImpl implements OrderService {
 
         order.recalculateTotalAmount();
         Order savedOrder = orderRepository.save(order);
+
+        // Phase 8 Metrics
+        orderCounter.increment();
+
+        if (savedOrder.getTotalAmount() != null) {
+            double value = savedOrder.getTotalAmount().doubleValue();
+            revenueCounter.increment(value);
+            totalOrderValue += value;
+            totalOrders++;
+        }
 
         return OrderMapper.toDto(savedOrder);
     }
@@ -193,12 +221,8 @@ public class OrderServiceImpl implements OrderService {
         for (Order order : orders) {
             LocalDate orderDate = order.getCreatedAt() != null ? order.getCreatedAt().toLocalDate() : null;
 
-            if (from != null && orderDate != null && orderDate.isBefore(from)) {
-                continue;
-            }
-            if (to != null && orderDate != null && orderDate.isAfter(to)) {
-                continue;
-            }
+            if (from != null && orderDate != null && orderDate.isBefore(from)) continue;
+            if (to != null && orderDate != null && orderDate.isAfter(to)) continue;
 
             for (OrderItem item : order.getOrderItems()) {
                 csv.append(order.getId()).append(",");
@@ -230,26 +254,17 @@ public class OrderServiceImpl implements OrderService {
 
     private String buildOrderSummary(Order order) {
         StringBuilder summary = new StringBuilder();
-
         summary.append("Order ID: ").append(order.getId()).append("\n");
-        summary.append("Customer: ").append(order.getCustomer().getFullName()).append("\n");
-        summary.append("Status: ").append(order.getStatus().name()).append("\n");
-        summary.append("Items:\n");
 
         for (OrderItem item : order.getOrderItems()) {
             summary.append("- ")
                     .append(item.getProduct().getName())
-                    .append(" | Qty: ")
-                    .append(item.getQuantity())
-                    .append(" | Unit Price: ")
-                    .append(formatAmount(item.getUnitPrice()))
-                    .append(" | Subtotal: ")
-                    .append(formatAmount(item.getSubtotal()))
+                    .append(" | Qty: ").append(item.getQuantity())
+                    .append(" | Price: ").append(formatAmount(item.getUnitPrice()))
                     .append("\n");
         }
 
-        summary.append("Total Amount: ").append(formatAmount(order.getTotalAmount()));
-
+        summary.append("Total: ").append(formatAmount(order.getTotalAmount()));
         return summary.toString();
     }
 
@@ -258,12 +273,8 @@ public class OrderServiceImpl implements OrderService {
     }
 
     private String escapeCsv(String value) {
-        if (value == null) {
-            return "";
-        }
-
-        String escaped = value.replace("\"", "\"\"");
-        return "\"" + escaped + "\"";
+        if (value == null) return "";
+        return "\"" + value.replace("\"", "\"\"") + "\"";
     }
 
     private boolean isValidTransition(OrderStatus current, OrderStatus next) {

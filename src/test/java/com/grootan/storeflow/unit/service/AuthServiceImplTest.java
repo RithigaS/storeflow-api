@@ -166,7 +166,8 @@ class AuthServiceImplTest {
 
     @Test
     void forgotPasswordShouldCallEmailServiceExactlyOnceWithCorrectResetLink() {
-        when(userRepository.findByEmailIgnoreCase("user@gmail.com")).thenReturn(Optional.of(user));
+        when(userRepository.findByEmailIgnoreCase("user@gmail.com"))
+                .thenReturn(Optional.of(user));
 
         ForgotPasswordRequest request = new ForgotPasswordRequest();
         request.setEmail("user@gmail.com");
@@ -188,7 +189,11 @@ class AuthServiceImplTest {
                 .sendPasswordResetEmail(emailCaptor.capture(), linkCaptor.capture());
 
         assertEquals("user@gmail.com", emailCaptor.getValue());
-        assertTrue(linkCaptor.getValue().contains(savedToken.getToken()));
-        assertTrue(linkCaptor.getValue().contains("/api/auth/reset-password/"));
+
+        String resetLink = linkCaptor.getValue();
+
+
+        assertTrue(resetLink.contains("/reset-password?token="));
+        assertTrue(resetLink.contains(savedToken.getToken()));
     }
 }

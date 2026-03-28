@@ -34,7 +34,7 @@ spring:
 
   mail:
     host: localhost
-    port: 3025
+    port: 1025
     username: ""
     password: ""
     properties:
@@ -107,3 +107,6 @@ app:
 
   actuator:
     protected: true
+logging:
+    pattern:
+      console: "%d{yyyy-MM-dd HH:mm:ss} [%X{traceId}] %-5level %logger{36} - %msg%n"

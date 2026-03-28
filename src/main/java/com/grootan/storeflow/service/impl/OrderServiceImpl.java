@@ -27,7 +27,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import org.springframework.beans.factory.annotation.Autowired;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
@@ -54,7 +54,7 @@ public class OrderServiceImpl implements OrderService {
     @Value("${app.stock.low-threshold:5}")
     private int lowStockThreshold;
 
-    // ✅ Main constructor (used by Spring)
+    @Autowired
     public OrderServiceImpl(
             OrderRepository orderRepository,
             ProductRepository productRepository,
@@ -137,7 +137,7 @@ public class OrderServiceImpl implements OrderService {
         order.recalculateTotalAmount();
         Order savedOrder = orderRepository.save(order);
 
-        // ✅ Metrics (safe)
+        //  Metrics (safe)
         if (orderCounter != null) {
             orderCounter.increment();
         }

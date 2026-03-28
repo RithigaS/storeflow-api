@@ -2,6 +2,9 @@ spring:
   application:
     name: storeflow-api
 
+  profiles:
+    active: dev
+
   datasource:
     url: jdbc:postgresql://localhost:5432/storeflow_db
     username: postgres
@@ -29,18 +32,51 @@ spring:
       max-file-size: 5MB
       max-request-size: 5MB
 
+  mail:
+    host: localhost
+    port: 3025
+    username: ""
+    password: ""
+    properties:
+      mail:
+        smtp:
+          auth: false
+          starttls:
+            enabled: false
+
 management:
   endpoints:
     web:
+      base-path: /actuator
       exposure:
-        include: health,info
+        include: health,info,metrics,prometheus
   endpoint:
     health:
       show-details: always
+  info:
+    env:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
 
 server:
   error:
     include-message: always
+  shutdown: graceful
+  compression:
+    enabled: true
+    min-response-size: 1024
+    mime-types: application/json,application/xml,text/html,text/plain,text/xml,text/csv
+
+spring.lifecycle:
+  timeout-per-shutdown-phase: 20s
+
+info:
+  app:
+    name: StoreFlow API
+    description: StoreFlow backend service
+    version: 0.0.1-SNAPSHOT
 
 app:
   jwt:
@@ -52,3 +88,19 @@ app:
     upload-dir: uploads
     product-image-dir: products
     avatar-dir: avatars
+
+  mail:
+    from: no-reply@storeflow.local
+    frontend-base-url: http://localhost:3000
+
+  stock:
+    low-threshold: 5
+
+  logging:
+    trace-id-header: X-Trace-Id
+
+  digest:
+    enabled: true
+
+  actuator:
+    protected: true

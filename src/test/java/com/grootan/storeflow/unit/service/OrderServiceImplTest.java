@@ -10,6 +10,7 @@ import com.grootan.storeflow.exception.ResourceNotFoundException;
 import com.grootan.storeflow.repository.OrderRepository;
 import com.grootan.storeflow.repository.ProductRepository;
 import com.grootan.storeflow.repository.UserRepository;
+import com.grootan.storeflow.service.EmailService;
 import com.grootan.storeflow.service.NotificationService;
 import com.grootan.storeflow.service.OrderReportPdfService;
 import com.grootan.storeflow.service.impl.OrderServiceImpl;
@@ -31,6 +32,8 @@ class OrderServiceImplTest {
     private UserRepository userRepository;
     private OrderReportPdfService orderReportPdfService;
     private NotificationService notificationService;
+    private EmailService emailService;
+
     private OrderServiceImpl orderService;
 
     @BeforeEach
@@ -40,14 +43,15 @@ class OrderServiceImplTest {
         userRepository = mock(UserRepository.class);
         orderReportPdfService = mock(OrderReportPdfService.class);
         notificationService = mock(NotificationService.class);
-
+        emailService = mock(EmailService.class);
 
         orderService = new OrderServiceImpl(
                 orderRepository,
                 productRepository,
                 userRepository,
                 orderReportPdfService,
-                notificationService
+                notificationService,
+                emailService
         );
     }
 
@@ -94,7 +98,6 @@ class OrderServiceImplTest {
 
         assertEquals("SHIPPED", result.status().name());
 
-
         verify(notificationService, times(1))
                 .sendOrderStatusUpdate(
                         eq(1010L),
@@ -112,6 +115,64 @@ class OrderServiceImplTest {
                 () -> orderService.updateStatus(1012L, OrderStatus.CONFIRMED));
     }
 
+    @Test
+    void shouldTriggerLowStockAlert() {
+        Product product = new Product();
+        product.setId(1L);
+        product.setName("Test Product");
+        product.setStockQuantity(4);
+
+        emailService.sendLowStockAlert(product.getName(), product.getStockQuantity());
+
+        verify(emailService, times(1))
+                .sendLowStockAlert("Test Product", 4);
+    }
+
+    @Test
+    void shouldSendOrderConfirmationEmail() {
+        Order order = buildOrder(2001L, "user@test.com", "User", OrderStatus.PENDING);
+
+        when(orderRepository.findWithDetailsById(2001L)).thenReturn(Optional.of(order));
+        when(orderRepository.save(order)).thenReturn(order);
+
+        orderService.updateStatus(2001L, OrderStatus.CONFIRMED);
+
+        verify(notificationService, times(1))
+                .sendOrderStatusUpdate(
+                        eq(2001L),
+                        eq(order.getCustomer().getId()),
+                        any()
+                );
+
+        verify(emailService, times(1))
+                .sendOrderConfirmationEmail(eq("user@test.com"), anyString());
+    }
+
+    @Test
+    void shouldGeneratePdfReport() {
+        Order order = buildOrder(3001L, "user@test.com", "User", OrderStatus.PENDING);
+
+        when(orderRepository.findWithDetailsById(3001L)).thenReturn(Optional.of(order));
+        when(orderReportPdfService.generateOrderReport(order)).thenReturn(new byte[]{1, 2, 3});
+
+        byte[] result = orderService.generateOrderReport(3001L, "user@test.com", true);
+
+        assertNotNull(result);
+        assertTrue(result.length > 0);
+        verify(orderReportPdfService, times(1)).generateOrderReport(order);
+    }
+
+    @Test
+    void shouldExportOrdersAsCsv() {
+        Order order = buildOrder(4001L, "user@test.com", "User", OrderStatus.PENDING);
+
+        when(orderRepository.findAll()).thenReturn(List.of(order));
+
+        byte[] csv = orderService.exportOrdersAsCsv(null, null, "admin@test.com", true);
+
+        assertNotNull(csv);
+        assertTrue(new String(csv).contains("orderId"));
+    }
 
     private Order buildOrder(Long orderId, String email, String fullName, OrderStatus status) {
         User user = new User();

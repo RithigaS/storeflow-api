@@ -24,10 +24,11 @@ import com.grootan.storeflow.service.OrderService;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.beans.factory.annotation.Autowired;
+
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
@@ -76,7 +77,9 @@ public class OrderServiceImpl implements OrderService {
             this.revenueCounter = meterRegistry.counter("order_revenue_total");
 
             Gauge.builder("order_value_avg", this, service -> {
-                if (service.totalOrders == 0) return 0;
+                if (service.totalOrders == 0) {
+                    return 0;
+                }
                 return service.totalOrderValue / service.totalOrders;
             }).register(meterRegistry);
         } else {
@@ -85,7 +88,27 @@ public class OrderServiceImpl implements OrderService {
         }
     }
 
-    // ✅ Backward compatible constructor (for tests)
+    // Backward compatible constructor for unit tests using EmailService but no MeterRegistry
+    public OrderServiceImpl(
+            OrderRepository orderRepository,
+            ProductRepository productRepository,
+            UserRepository userRepository,
+            OrderReportPdfService orderReportPdfService,
+            NotificationService notificationService,
+            EmailService emailService
+    ) {
+        this(
+                orderRepository,
+                productRepository,
+                userRepository,
+                orderReportPdfService,
+                notificationService,
+                emailService,
+                null
+        );
+    }
+
+    // Backward compatible constructor for older tests
     public OrderServiceImpl(
             OrderRepository orderRepository,
             ProductRepository productRepository,
@@ -93,9 +116,15 @@ public class OrderServiceImpl implements OrderService {
             OrderReportPdfService orderReportPdfService,
             NotificationService notificationService
     ) {
-        this(orderRepository, productRepository, userRepository,
-                orderReportPdfService, notificationService,
-                null, null);
+        this(
+                orderRepository,
+                productRepository,
+                userRepository,
+                orderReportPdfService,
+                notificationService,
+                null,
+                null
+        );
     }
 
     @Override
@@ -129,7 +158,7 @@ public class OrderServiceImpl implements OrderService {
             item.calculateSubtotal();
             order.addOrderItem(item);
 
-            if (product.getStockQuantity() < lowStockThreshold) {
+            if (emailService != null && product.getStockQuantity() < lowStockThreshold) {
                 emailService.sendLowStockAlert(product.getName(), product.getStockQuantity());
             }
         }
@@ -137,7 +166,6 @@ public class OrderServiceImpl implements OrderService {
         order.recalculateTotalAmount();
         Order savedOrder = orderRepository.save(order);
 
-        //  Metrics (safe)
         if (orderCounter != null) {
             orderCounter.increment();
         }
@@ -211,7 +239,7 @@ public class OrderServiceImpl implements OrderService {
                 payload
         );
 
-        if (status == OrderStatus.CONFIRMED) {
+        if (emailService != null && status == OrderStatus.CONFIRMED) {
             String orderSummary = buildOrderSummary(saved);
             emailService.sendOrderConfirmationEmail(saved.getCustomer().getEmail(), orderSummary);
         }
@@ -245,8 +273,12 @@ public class OrderServiceImpl implements OrderService {
         for (Order order : orders) {
             LocalDate orderDate = order.getCreatedAt() != null ? order.getCreatedAt().toLocalDate() : null;
 
-            if (from != null && orderDate != null && orderDate.isBefore(from)) continue;
-            if (to != null && orderDate != null && orderDate.isAfter(to)) continue;
+            if (from != null && orderDate != null && orderDate.isBefore(from)) {
+                continue;
+            }
+            if (to != null && orderDate != null && orderDate.isAfter(to)) {
+                continue;
+            }
 
             for (OrderItem item : order.getOrderItems()) {
                 csv.append(order.getId()).append(",");
@@ -297,7 +329,9 @@ public class OrderServiceImpl implements OrderService {
     }
 
     private String escapeCsv(String value) {
-        if (value == null) return "";
+        if (value == null) {
+            return "";
+        }
         return "\"" + value.replace("\"", "\"\"") + "\"";
     }
 

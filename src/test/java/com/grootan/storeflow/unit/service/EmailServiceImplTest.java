@@ -20,7 +20,7 @@ class EmailServiceImplTest {
         // Mock JavaMailSender
         mailSender = Mockito.mock(JavaMailSender.class);
 
-        // FIX: mock MimeMessage properly
+        //  mock MimeMessage properly
         MimeMessage mimeMessage = new MimeMessage((Session) null);
         Mockito.when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
 

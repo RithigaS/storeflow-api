@@ -7,6 +7,7 @@ import com.grootan.storeflow.entity.enums.Role;
 import com.grootan.storeflow.repository.OrderRepository;
 import com.grootan.storeflow.repository.ProductRepository;
 import com.grootan.storeflow.repository.UserRepository;
+import com.grootan.storeflow.service.EmailService;
 import com.grootan.storeflow.service.NotificationService;
 import com.grootan.storeflow.service.OrderReportPdfService;
 import com.grootan.storeflow.service.impl.OrderServiceImpl;
@@ -30,6 +31,8 @@ class OrderServiceImplCsvTest {
     private UserRepository userRepository;
     private OrderReportPdfService orderReportPdfService;
     private NotificationService notificationService;
+    private EmailService emailService;
+
     private OrderServiceImpl orderService;
 
     @BeforeEach
@@ -39,14 +42,15 @@ class OrderServiceImplCsvTest {
         userRepository = mock(UserRepository.class);
         orderReportPdfService = mock(OrderReportPdfService.class);
         notificationService = mock(NotificationService.class);
-
+        emailService = mock(EmailService.class);
 
         orderService = new OrderServiceImpl(
                 orderRepository,
                 productRepository,
                 userRepository,
                 orderReportPdfService,
-                notificationService
+                notificationService,
+                emailService
         );
     }
 
@@ -160,7 +164,32 @@ class OrderServiceImplCsvTest {
         assertFalse(csv.contains("Mouse"));
     }
 
+    // ✅ NEW TEST (ADMIN BRANCH COVERAGE)
+    @Test
+    void exportOrdersAsCsvAdminUsesFindAll() {
 
+        Product product = buildProduct("Keyboard", "KEY-001", 2000);
+        User user = buildUser();
+
+        Order order = buildOrder(user, LocalDateTime.now());
+        order.addOrderItem(buildItem(product, 1));
+
+        when(orderRepository.findAll()).thenReturn(List.of(order));
+
+        byte[] csvBytes = orderService.exportOrdersAsCsv(
+                null,
+                null,
+                "admin@test.com",
+                true
+        );
+
+        String csv = new String(csvBytes, StandardCharsets.UTF_8);
+
+        assertTrue(csv.contains("Keyboard"));
+        verify(orderRepository, times(1)).findAll();
+    }
+
+    // ================= HELPERS =================
 
     private User buildUser() {
         User user = new User();

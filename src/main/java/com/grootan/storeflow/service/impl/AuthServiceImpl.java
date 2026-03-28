@@ -1,6 +1,12 @@
 package com.grootan.storeflow.service.impl;
 
-import com.grootan.storeflow.dto.auth.*;
+import com.grootan.storeflow.dto.auth.AuthResponse;
+import com.grootan.storeflow.dto.auth.ForgotPasswordRequest;
+import com.grootan.storeflow.dto.auth.LoginRequest;
+import com.grootan.storeflow.dto.auth.RefreshTokenRequest;
+import com.grootan.storeflow.dto.auth.ResetPasswordRequest;
+import com.grootan.storeflow.dto.auth.SignupRequest;
+import com.grootan.storeflow.dto.auth.UserProfileResponse;
 import com.grootan.storeflow.entity.PasswordResetToken;
 import com.grootan.storeflow.entity.RefreshToken;
 import com.grootan.storeflow.entity.User;
@@ -12,7 +18,9 @@ import com.grootan.storeflow.repository.UserRepository;
 import com.grootan.storeflow.security.JwtService;
 import com.grootan.storeflow.service.AuthService;
 import com.grootan.storeflow.service.EmailService;
+import com.grootan.storeflow.service.FileStorageService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -32,7 +40,10 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final EmailService emailService;
-    private final com.grootan.storeflow.service.FileStorageService fileStorageService;
+    private final FileStorageService fileStorageService;
+
+    @Value("${app.mail.frontend-base-url}")
+    private String frontendBaseUrl;
 
     @Override
     public AuthResponse signup(SignupRequest request) {
@@ -52,6 +63,8 @@ public class AuthServiceImpl implements AuthService {
         user.setEnabled(true);
 
         user = userRepository.save(user);
+
+        emailService.sendWelcomeEmail(user.getEmail(), user.getFullName());
 
         String accessToken = jwtService.generateAccessToken(
                 user.getId(),
@@ -130,8 +143,7 @@ public class AuthServiceImpl implements AuthService {
 
         passwordResetTokenRepository.save(buildPasswordResetToken(user, token));
 
-        String resetLink = "http://localhost:8080/api/auth/reset-password/" + token;
-
+        String resetLink = frontendBaseUrl + "/reset-password?token=" + token;
         emailService.sendPasswordResetEmail(user.getEmail(), resetLink);
     }
 
@@ -166,15 +178,9 @@ public class AuthServiceImpl implements AuthService {
         User user = userRepository.findByEmailIgnoreCase(normalizedEmail)
                 .orElseThrow(() -> new AppException("User not found", HttpStatus.NOT_FOUND));
 
-        UserProfileResponse response = new UserProfileResponse();
-        response.setId(user.getId());
-        response.setFullName(user.getFullName());
-        response.setEmail(user.getEmail());
-        response.setRole(user.getRole().name());
-        response.setAvatarUrl(user.getAvatarUrl());
-
-        return response;
+        return buildUserProfileResponse(user);
     }
+
     @Override
     public UserProfileResponse uploadAvatar(String email, MultipartFile file) {
         String normalizedEmail = normalizeEmail(email);
@@ -184,17 +190,11 @@ public class AuthServiceImpl implements AuthService {
 
         String avatarUrl = fileStorageService.storeAvatar(file, user.getId());
         user.setAvatarUrl(avatarUrl);
-
         userRepository.save(user);
 
-        UserProfileResponse response = new UserProfileResponse();
-        response.setId(user.getId());
-        response.setFullName(user.getFullName());
-        response.setEmail(user.getEmail());
-        response.setRole(user.getRole().name());
-        response.setAvatarUrl(user.getAvatarUrl());
-        return response;
+        return buildUserProfileResponse(user);
     }
+
     private RefreshToken buildRefreshToken(User user, String token) {
         RefreshToken refreshToken = new RefreshToken();
         refreshToken.setToken(token);
@@ -222,7 +222,16 @@ public class AuthServiceImpl implements AuthService {
         response.setFullName(user.getFullName());
         response.setEmail(user.getEmail());
         response.setRole(user.getRole().name());
+        return response;
+    }
 
+    private UserProfileResponse buildUserProfileResponse(User user) {
+        UserProfileResponse response = new UserProfileResponse();
+        response.setId(user.getId());
+        response.setFullName(user.getFullName());
+        response.setEmail(user.getEmail());
+        response.setRole(user.getRole().name());
+        response.setAvatarUrl(user.getAvatarUrl());
         return response;
     }
 
@@ -233,5 +242,4 @@ public class AuthServiceImpl implements AuthService {
     private String normalizeEmail(String email) {
         return email == null ? null : email.trim().toLowerCase();
     }
-
 }

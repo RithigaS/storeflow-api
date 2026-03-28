@@ -30,6 +30,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.notNullValue;
@@ -38,21 +39,22 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-
-
 class AuthIntegrationTest {
+
     @Autowired
     private RefreshTokenRepository refreshTokenRepository;
 
     @Autowired
     private PasswordResetTokenRepository passwordResetTokenRepository;
-
 
     @TestConfiguration
     static class NoRateLimitConfig {
@@ -209,9 +211,11 @@ class AuthIntegrationTest {
         assertEquals("resetuser@gmail.com", toCaptor.getValue());
 
         String resetLink = linkCaptor.getValue();
-        assertTrue(resetLink.contains("/api/auth/reset-password/"));
 
-        String token = resetLink.substring(resetLink.lastIndexOf("/") + 1);
+        // ✅ Phase 8: frontend reset link format
+        assertTrue(resetLink.contains("/reset-password?token="));
+
+        String token = extractTokenFromResetLink(resetLink);
 
         String resetBody = """
                 {
@@ -257,39 +261,6 @@ class AuthIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accessToken").exists())
                 .andExpect(jsonPath("$.refreshToken").value(refreshToken));
-    }
-
-    private User createUser(String email, String rawPassword, Role role, String fullName) {
-        User user = new User();
-        user.setFullName(fullName);
-        user.setEmail(email);
-        user.setPassword(passwordEncoder.encode(rawPassword));
-        user.setRole(role);
-        user.setEnabled(true);
-        return userRepository.save(user);
-    }
-
-    private String signupAndGetAccessToken(String email, String password, String fullName) throws Exception {
-        String response = signupAndReturnResponse(email, password, fullName);
-        return readJson(response).get("accessToken").asText();
-    }
-
-    private String signupAndReturnResponse(String email, String password, String fullName) throws Exception {
-        String signupBody = """
-                {
-                  "fullName": "%s",
-                  "email": "%s",
-                  "password": "%s"
-                }
-                """.formatted(fullName, email, password);
-
-        return mockMvc.perform(post("/api/auth/signup")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(signupBody))
-                .andExpect(status().isCreated())
-                .andReturn()
-                .getResponse()
-                .getContentAsString();
     }
 
     @Test
@@ -351,6 +322,39 @@ class AuthIntegrationTest {
                 .andExpect(jsonPath("$.avatarUrl").exists());
     }
 
+    private User createUser(String email, String rawPassword, Role role, String fullName) {
+        User user = new User();
+        user.setFullName(fullName);
+        user.setEmail(email);
+        user.setPassword(passwordEncoder.encode(rawPassword));
+        user.setRole(role);
+        user.setEnabled(true);
+        return userRepository.save(user);
+    }
+
+    private String signupAndGetAccessToken(String email, String password, String fullName) throws Exception {
+        String response = signupAndReturnResponse(email, password, fullName);
+        return readJson(response).get("accessToken").asText();
+    }
+
+    private String signupAndReturnResponse(String email, String password, String fullName) throws Exception {
+        String signupBody = """
+                {
+                  "fullName": "%s",
+                  "email": "%s",
+                  "password": "%s"
+                }
+                """.formatted(fullName, email, password);
+
+        return mockMvc.perform(post("/api/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(signupBody))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+    }
+
     private JsonNode readJson(String json) throws Exception {
         return objectMapper.readTree(json);
     }
@@ -359,5 +363,21 @@ class AuthIntegrationTest {
         return prefix + "_" + UUID.randomUUID().toString().substring(0, 8) + "@gmail.com";
     }
 
+    private String extractTokenFromResetLink(String resetLink) {
+        URI uri = URI.create(resetLink);
+        String query = uri.getQuery();
 
+        if (query == null || query.isBlank()) {
+            throw new IllegalArgumentException("Reset link does not contain query parameters");
+        }
+
+        for (String pair : query.split("&")) {
+            String[] parts = pair.split("=", 2);
+            if (parts.length == 2 && "token".equals(parts[0])) {
+                return parts[1];
+            }
+        }
+
+        throw new IllegalArgumentException("Token not found in reset link");
+    }
 }

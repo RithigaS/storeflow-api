@@ -14,6 +14,7 @@ public class ProductMapper {
                 product.getPrice(),
                 product.getStockQuantity(),
                 product.getStatus(),
+                product.getImageUrl(),
                 new CategoryDto(
                         product.getCategory().getId(),
                         product.getCategory().getName(),

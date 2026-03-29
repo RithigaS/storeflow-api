@@ -27,8 +27,11 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -167,6 +170,73 @@ class ProductControllerIntegrationTest extends TestContainerConfig {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestBody))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void postProductsWithInvalidFieldsReturns400WithFieldErrors() throws Exception {
+        String requestBody = """
+                {
+                  "name": "",
+                  "description": "Test",
+                  "sku": "invalid-sku",
+                  "price": -10,
+                  "stockQuantity": -5,
+                  "categoryId": null
+                }
+                """;
+
+        mockMvc.perform(post("/api/products")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Validation failed"))
+                .andExpect(jsonPath("$.errors.name").exists())
+                .andExpect(jsonPath("$.errors.price").exists())
+                .andExpect(jsonPath("$.errors.stockQuantity").exists())
+                .andExpect(jsonPath("$.errors.sku").exists());
+    }
+
+    @Test
+    void postProductsWithInvalidSkuFormatReturns400() throws Exception {
+        String requestBody = """
+                {
+                  "name": "Laptop",
+                  "description": "Test",
+                  "sku": "abc123",
+                  "price": 1200,
+                  "stockQuantity": 5,
+                  "categoryId": %d
+                }
+                """.formatted(electronicsCategory.getId());
+
+        mockMvc.perform(post("/api/products")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void postProductsWithDuplicateSkuReturns409() throws Exception {
+        createProduct("Laptop", "DUP-001", BigDecimal.valueOf(1000), 5, ProductStatus.ACTIVE, electronicsCategory);
+
+        String requestBody = """
+                {
+                  "name": "Another Laptop",
+                  "description": "Test",
+                  "sku": "DUP-001",
+                  "price": 1200,
+                  "stockQuantity": 5,
+                  "categoryId": %d
+                }
+                """.formatted(electronicsCategory.getId());
+
+        mockMvc.perform(post("/api/products")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isConflict());
     }
 
     @Test
@@ -376,5 +446,84 @@ class ProductControllerIntegrationTest extends TestContainerConfig {
 
         JsonNode jsonNode = objectMapper.readTree(response);
         return jsonNode.get("accessToken").asText();
+    }
+    @Test
+    void uploadProductImageAndDownloadShouldWork() throws Exception {
+        Product product = createProduct(
+                "Camera",
+                "CAM-001",
+                BigDecimal.valueOf(500),
+                10,
+                ProductStatus.ACTIVE,
+                electronicsCategory
+        );
+
+        MockMultipartFile imageFile = new MockMultipartFile(
+                "file",
+                "camera.jpg",
+                "image/jpeg",
+                "fake-image-content".getBytes()
+        );
+
+        mockMvc.perform(multipart("/api/products/{id}/image", product.getId())
+                        .file(imageFile)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.imageUrl").exists());
+
+        mockMvc.perform(get("/api/products/{id}/image", product.getId()))
+                .andExpect(status().isOk())
+                .andExpect(header().exists("Content-Type"));
+    }
+
+    @Test
+    void uploadOversizedProductImageReturns400() throws Exception {
+        Product product = createProduct(
+                "Printer",
+                "PRI-001",
+                BigDecimal.valueOf(700),
+                5,
+                ProductStatus.ACTIVE,
+                electronicsCategory
+        );
+
+        byte[] largeContent = new byte[5 * 1024 * 1024 + 1];
+
+        MockMultipartFile imageFile = new MockMultipartFile(
+                "file",
+                "large.jpg",
+                "image/jpeg",
+                largeContent
+        );
+
+        mockMvc.perform(multipart("/api/products/{id}/image", product.getId())
+                        .file(imageFile)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("File size must not exceed 5MB"));
+    }
+    @Test
+    void uploadProductImageWithInvalidMimeTypeReturns400() throws Exception {
+        Product product = createProduct(
+                "Scanner",
+                "SCA-001",
+                BigDecimal.valueOf(450),
+                6,
+                ProductStatus.ACTIVE,
+                electronicsCategory
+        );
+
+        MockMultipartFile invalidFile = new MockMultipartFile(
+                "file",
+                "document.pdf",
+                "application/pdf",
+                "fake-pdf-content".getBytes()
+        );
+
+        mockMvc.perform(multipart("/api/products/{id}/image", product.getId())
+                        .file(invalidFile)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Only JPEG, PNG, and WEBP image files are allowed"));
     }
 }

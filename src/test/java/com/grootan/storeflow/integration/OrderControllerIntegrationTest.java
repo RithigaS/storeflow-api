@@ -4,7 +4,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.grootan.storeflow.entity.Category;
 import com.grootan.storeflow.entity.Order;
+import com.grootan.storeflow.entity.OrderItem;
 import com.grootan.storeflow.entity.Product;
+import com.grootan.storeflow.entity.ShippingAddress;
 import com.grootan.storeflow.entity.User;
 import com.grootan.storeflow.entity.enums.OrderStatus;
 import com.grootan.storeflow.entity.enums.ProductStatus;
@@ -35,11 +37,13 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -258,7 +262,7 @@ class OrderControllerIntegrationTest extends TestContainerConfig {
     }
 
     @Test
-    void patchOrderStatusReturns400ForInvalidStatusTransition() throws Exception {
+    void patchOrderStatusReturns422ForInvalidStatusTransition() throws Exception {
         Order order = createOrderForDefaultUser();
         order.setStatus(OrderStatus.DELIVERED);
         order = orderRepository.saveAndFlush(order);
@@ -273,17 +277,78 @@ class OrderControllerIntegrationTest extends TestContainerConfig {
                         .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestBody))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isUnprocessableEntity());
+    }
+
+    @Test
+    void postOrdersWithInvalidFieldsReturns400WithValidationErrors() throws Exception {
+        String requestBody = """
+            {
+              "street": "",
+              "city": "",
+              "country": "",
+              "postalCode": "",
+              "items": []
+            }
+            """;
+
+        mockMvc.perform(post("/api/orders")
+                        .header("Authorization", "Bearer " + userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Validation failed"))
+                .andExpect(jsonPath("$.errors.street").exists())
+                .andExpect(jsonPath("$.errors.city").exists())
+                .andExpect(jsonPath("$.errors.country").exists())
+                .andExpect(jsonPath("$.errors.postalCode").exists());
+    }
+
+    // =========================
+    // Phase 6 Added Tests
+    // =========================
+
+    @Test
+    void getOrderReportReturnsPdfContentType() throws Exception {
+        Order order = createOrderForDefaultUser();
+
+        mockMvc.perform(get("/api/orders/{id}/report", order.getId())
+                        .header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", "application/pdf"));
+    }
+
+    @Test
+    void exportOrdersAsCsvReturnsCsvContentType() throws Exception {
+        createOrderForDefaultUser();
+
+        mockMvc.perform(get("/api/orders/export")
+                        .param("from", LocalDate.now().minusDays(1).toString())
+                        .param("to", LocalDate.now().plusDays(1).toString())
+                        .header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", "text/csv"));
+    }
+
+    @Test
+    void adminCanDownloadAnyOrderReportWhenAdminTrue() throws Exception {
+        Order order = createOrderForDefaultUser();
+
+        mockMvc.perform(get("/api/orders/{id}/report", order.getId())
+                        .param("admin", "true")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", "application/pdf"));
     }
 
     private Order createOrderForDefaultUser() {
         Order order = new Order();
         order.setCustomer(defaultUser);
-        order.setShippingAddress(new com.grootan.storeflow.entity.ShippingAddress(
+        order.setShippingAddress(new ShippingAddress(
                 "Street 1", "Coimbatore", "India", "641001"
         ));
 
-        com.grootan.storeflow.entity.OrderItem item = new com.grootan.storeflow.entity.OrderItem();
+        OrderItem item = new OrderItem();
         item.setProduct(product);
         item.setQuantity(2);
         item.setUnitPrice(product.getPrice());
@@ -313,5 +378,34 @@ class OrderControllerIntegrationTest extends TestContainerConfig {
 
         JsonNode jsonNode = objectMapper.readTree(response);
         return jsonNode.get("accessToken").asText();
+    }
+
+    @Test
+    void userCannotAccessAnotherUsersOrderById() throws Exception {
+        User anotherUser = new User();
+        anotherUser.setEmail("another@test.com");
+        anotherUser.setPassword(passwordEncoder.encode("password123"));
+        anotherUser.setFullName("Another User");
+        anotherUser.setRole(Role.USER);
+        anotherUser.setEnabled(true);
+        anotherUser = userRepository.saveAndFlush(anotherUser);
+
+        Order order = new Order();
+        order.setCustomer(anotherUser);
+        order.setShippingAddress(new ShippingAddress("Street", "City", "India", "641001"));
+
+        OrderItem item = new OrderItem();
+        item.setProduct(product);
+        item.setQuantity(1);
+        item.setUnitPrice(product.getPrice());
+        item.calculateSubtotal();
+
+        order.addOrderItem(item);
+        order.recalculateTotalAmount();
+        order = orderRepository.saveAndFlush(order);
+
+        mockMvc.perform(get("/api/orders/{id}", order.getId())
+                        .header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isNotFound());
     }
 }

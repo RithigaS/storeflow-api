@@ -23,12 +23,14 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.notNullValue;
@@ -39,21 +41,20 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-
-
 class AuthIntegrationTest {
+
     @Autowired
     private RefreshTokenRepository refreshTokenRepository;
 
     @Autowired
     private PasswordResetTokenRepository passwordResetTokenRepository;
-
 
     @TestConfiguration
     static class NoRateLimitConfig {
@@ -210,9 +211,11 @@ class AuthIntegrationTest {
         assertEquals("resetuser@gmail.com", toCaptor.getValue());
 
         String resetLink = linkCaptor.getValue();
-        assertTrue(resetLink.contains("/api/auth/reset-password/"));
 
-        String token = resetLink.substring(resetLink.lastIndexOf("/") + 1);
+        // ✅ Phase 8: frontend reset link format
+        assertTrue(resetLink.contains("/reset-password?token="));
+
+        String token = extractTokenFromResetLink(resetLink);
 
         String resetBody = """
                 {
@@ -260,6 +263,65 @@ class AuthIntegrationTest {
                 .andExpect(jsonPath("$.refreshToken").value(refreshToken));
     }
 
+    @Test
+    void signupWithInvalidFieldsReturns400() throws Exception {
+        String body = """
+            {
+              "fullName": "",
+              "email": "invalid",
+              "password": "123"
+            }
+            """;
+
+        mockMvc.perform(post("/api/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Validation failed"))
+                .andExpect(jsonPath("$.errors.fullName").exists())
+                .andExpect(jsonPath("$.errors.email").exists())
+                .andExpect(jsonPath("$.errors.password").exists());
+    }
+
+    @Test
+    void loginWithInvalidFieldsReturns400() throws Exception {
+        String body = """
+            {
+              "email": "",
+              "password": ""
+            }
+            """;
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void uploadAvatarShouldReturnProfileWithAvatarUrl() throws Exception {
+        String email = uniqueEmail("avatar");
+        String accessToken = signupAndGetAccessToken(email, "password123", "Avatar User");
+
+        MockMultipartFile avatarFile = new MockMultipartFile(
+                "file",
+                "avatar.jpg",
+                "image/jpeg",
+                "fake-avatar-content".getBytes()
+        );
+
+        mockMvc.perform(multipart("/api/auth/me/avatar")
+                        .file(avatarFile)
+                        .with(request -> {
+                            request.setMethod("PUT");
+                            return request;
+                        })
+                        .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value(email))
+                .andExpect(jsonPath("$.avatarUrl").exists());
+    }
+
     private User createUser(String email, String rawPassword, Role role, String fullName) {
         User user = new User();
         user.setFullName(fullName);
@@ -299,5 +361,23 @@ class AuthIntegrationTest {
 
     private String uniqueEmail(String prefix) {
         return prefix + "_" + UUID.randomUUID().toString().substring(0, 8) + "@gmail.com";
+    }
+
+    private String extractTokenFromResetLink(String resetLink) {
+        URI uri = URI.create(resetLink);
+        String query = uri.getQuery();
+
+        if (query == null || query.isBlank()) {
+            throw new IllegalArgumentException("Reset link does not contain query parameters");
+        }
+
+        for (String pair : query.split("&")) {
+            String[] parts = pair.split("=", 2);
+            if (parts.length == 2 && "token".equals(parts[0])) {
+                return parts[1];
+            }
+        }
+
+        throw new IllegalArgumentException("Token not found in reset link");
     }
 }

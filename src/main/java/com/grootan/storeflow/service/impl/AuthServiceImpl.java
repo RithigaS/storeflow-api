@@ -1,6 +1,12 @@
 package com.grootan.storeflow.service.impl;
 
-import com.grootan.storeflow.dto.auth.*;
+import com.grootan.storeflow.dto.auth.AuthResponse;
+import com.grootan.storeflow.dto.auth.ForgotPasswordRequest;
+import com.grootan.storeflow.dto.auth.LoginRequest;
+import com.grootan.storeflow.dto.auth.RefreshTokenRequest;
+import com.grootan.storeflow.dto.auth.ResetPasswordRequest;
+import com.grootan.storeflow.dto.auth.SignupRequest;
+import com.grootan.storeflow.dto.auth.UserProfileResponse;
 import com.grootan.storeflow.entity.PasswordResetToken;
 import com.grootan.storeflow.entity.RefreshToken;
 import com.grootan.storeflow.entity.User;
@@ -12,11 +18,14 @@ import com.grootan.storeflow.repository.UserRepository;
 import com.grootan.storeflow.security.JwtService;
 import com.grootan.storeflow.service.AuthService;
 import com.grootan.storeflow.service.EmailService;
+import com.grootan.storeflow.service.FileStorageService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -31,23 +40,31 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final EmailService emailService;
+    private final FileStorageService fileStorageService;
 
-    // ================= SIGNUP =================
+    @Value("${app.mail.frontend-base-url}")
+    private String frontendBaseUrl;
+
     @Override
     public AuthResponse signup(SignupRequest request) {
+        String fullName = normalize(request.getFullName());
+        String email = normalizeEmail(request.getEmail());
+        String password = normalize(request.getPassword());
 
-        if (userRepository.existsByEmailIgnoreCase(request.getEmail())) {
+        if (userRepository.existsByEmailIgnoreCase(email)) {
             throw new AppException("Email already registered", HttpStatus.BAD_REQUEST);
         }
 
         User user = new User();
-        user.setFullName(request.getFullName());
-        user.setEmail(request.getEmail());
-        user.setPassword(passwordEncoder.encode(request.getPassword()));
+        user.setFullName(fullName);
+        user.setEmail(email);
+        user.setPassword(passwordEncoder.encode(password));
         user.setRole(Role.USER);
         user.setEnabled(true);
 
         user = userRepository.save(user);
+
+        emailService.sendWelcomeEmail(user.getEmail(), user.getFullName());
 
         String accessToken = jwtService.generateAccessToken(
                 user.getId(),
@@ -60,21 +77,20 @@ public class AuthServiceImpl implements AuthService {
                 user.getEmail()
         );
 
-        refreshTokenRepository.save(
-                buildRefreshToken(user, refreshToken)
-        );
+        refreshTokenRepository.save(buildRefreshToken(user, refreshToken));
 
         return buildAuthResponse(user, accessToken, refreshToken);
     }
 
-    // ================= LOGIN =================
     @Override
     public AuthResponse login(LoginRequest request) {
+        String email = normalizeEmail(request.getEmail());
+        String password = normalize(request.getPassword());
 
-        User user = userRepository.findByEmailIgnoreCase(request.getEmail())
+        User user = userRepository.findByEmailIgnoreCase(email)
                 .orElseThrow(() -> new BadCredentialsException("Invalid email"));
 
-        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+        if (!passwordEncoder.matches(password, user.getPassword())) {
             throw new BadCredentialsException("Invalid password");
         }
 
@@ -89,18 +105,16 @@ public class AuthServiceImpl implements AuthService {
                 user.getEmail()
         );
 
-        refreshTokenRepository.save(
-                buildRefreshToken(user, refreshToken)
-        );
+        refreshTokenRepository.save(buildRefreshToken(user, refreshToken));
 
         return buildAuthResponse(user, accessToken, refreshToken);
     }
 
-    // ================= REFRESH =================
     @Override
     public AuthResponse refreshToken(RefreshTokenRequest request) {
+        String refreshTokenValue = normalize(request.getRefreshToken());
 
-        RefreshToken token = refreshTokenRepository.findByToken(request.getRefreshToken())
+        RefreshToken token = refreshTokenRepository.findByToken(refreshTokenValue)
                 .orElseThrow(() -> new AppException("Invalid refresh token", HttpStatus.UNAUTHORIZED));
 
         if (token.isRevoked() || token.getExpiryDate().isBefore(LocalDateTime.now())) {
@@ -118,29 +132,27 @@ public class AuthServiceImpl implements AuthService {
         return buildAuthResponse(user, newAccessToken, token.getToken());
     }
 
-    // ================= FORGOT PASSWORD =================
     @Override
     public void forgotPassword(ForgotPasswordRequest request) {
+        String email = normalizeEmail(request.getEmail());
 
-        User user = userRepository.findByEmailIgnoreCase(request.getEmail())
+        User user = userRepository.findByEmailIgnoreCase(email)
                 .orElseThrow(() -> new AppException("User not found", HttpStatus.NOT_FOUND));
 
         String token = UUID.randomUUID().toString();
 
-        passwordResetTokenRepository.save(
-                buildPasswordResetToken(user, token)
-        );
+        passwordResetTokenRepository.save(buildPasswordResetToken(user, token));
 
-        String resetLink = "http://localhost:8080/api/auth/reset-password/" + token;
-
+        String resetLink = frontendBaseUrl + "/reset-password?token=" + token;
         emailService.sendPasswordResetEmail(user.getEmail(), resetLink);
     }
 
-    // ================= RESET PASSWORD =================
     @Override
     public void resetPassword(String token, ResetPasswordRequest request) {
+        String normalizedToken = normalize(token);
+        String newPassword = normalize(request.getNewPassword());
 
-        PasswordResetToken resetToken = passwordResetTokenRepository.findByToken(token)
+        PasswordResetToken resetToken = passwordResetTokenRepository.findByToken(normalizedToken)
                 .orElseThrow(() -> new AppException("Invalid reset token", HttpStatus.BAD_REQUEST));
 
         if (resetToken.isUsed()) {
@@ -152,30 +164,37 @@ public class AuthServiceImpl implements AuthService {
         }
 
         User user = resetToken.getUser();
-        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        user.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
 
         resetToken.setUsed(true);
         passwordResetTokenRepository.save(resetToken);
     }
 
-    // ================= GET PROFILE =================
     @Override
     public UserProfileResponse getCurrentUserProfile(String email) {
+        String normalizedEmail = normalizeEmail(email);
 
-        User user = userRepository.findByEmailIgnoreCase(email)
+        User user = userRepository.findByEmailIgnoreCase(normalizedEmail)
                 .orElseThrow(() -> new AppException("User not found", HttpStatus.NOT_FOUND));
 
-        UserProfileResponse response = new UserProfileResponse();
-        response.setId(user.getId());
-        response.setFullName(user.getFullName());
-        response.setEmail(user.getEmail());
-        response.setRole(user.getRole().name());
-
-        return response;
+        return buildUserProfileResponse(user);
     }
 
-    // ================= HELPERS =================
+    @Override
+    public UserProfileResponse uploadAvatar(String email, MultipartFile file) {
+        String normalizedEmail = normalizeEmail(email);
+
+        User user = userRepository.findByEmailIgnoreCase(normalizedEmail)
+                .orElseThrow(() -> new AppException("User not found", HttpStatus.NOT_FOUND));
+
+        String avatarUrl = fileStorageService.storeAvatar(file, user.getId());
+        user.setAvatarUrl(avatarUrl);
+        userRepository.save(user);
+
+        return buildUserProfileResponse(user);
+    }
+
     private RefreshToken buildRefreshToken(User user, String token) {
         RefreshToken refreshToken = new RefreshToken();
         refreshToken.setToken(token);
@@ -195,7 +214,6 @@ public class AuthServiceImpl implements AuthService {
     }
 
     private AuthResponse buildAuthResponse(User user, String accessToken, String refreshToken) {
-
         AuthResponse response = new AuthResponse();
         response.setAccessToken(accessToken);
         response.setRefreshToken(refreshToken);
@@ -204,7 +222,24 @@ public class AuthServiceImpl implements AuthService {
         response.setFullName(user.getFullName());
         response.setEmail(user.getEmail());
         response.setRole(user.getRole().name());
-
         return response;
+    }
+
+    private UserProfileResponse buildUserProfileResponse(User user) {
+        UserProfileResponse response = new UserProfileResponse();
+        response.setId(user.getId());
+        response.setFullName(user.getFullName());
+        response.setEmail(user.getEmail());
+        response.setRole(user.getRole().name());
+        response.setAvatarUrl(user.getAvatarUrl());
+        return response;
+    }
+
+    private String normalize(String value) {
+        return value == null ? null : value.trim();
+    }
+
+    private String normalizeEmail(String email) {
+        return email == null ? null : email.trim().toLowerCase();
     }
 }

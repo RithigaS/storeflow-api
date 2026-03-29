@@ -64,25 +64,16 @@ public class OrderController {
                             schema = @Schema(implementation = CreateOrderRequest.class),
                             examples = @ExampleObject(value = """
                                     {
-                                      "items": [
-                                        {
-                                          "productId": 1,
-                                          "quantity": 2
-                                        },
-                                        {
-                                          "productId": 2,
-                                          "quantity": 1
-                                        }
-                                      ],
-                                      "shippingAddress": {
-                                        "fullName": "Rithi S",
-                                        "line1": "12, Main Road",
-                                        "line2": "Near Bus Stand",
-                                        "city": "Coimbatore",
-                                        "state": "Tamil Nadu",
-                                        "postalCode": "641001",
-                                        "country": "India"
-                                      }
+                                     "street": "12 Main Road",
+                                               "city": "Coimbatore",
+                                               "country": "India",
+                                               "postalCode": "641001",
+                                               "items": [
+                                                 {
+                                                   "productId": 1,
+                                                   "quantity": 1
+                                                 }
+                                               ]
                                     }
                                     """)
                     )
@@ -186,13 +177,14 @@ public class OrderController {
             description = "Generates and downloads a PDF report for a given order",
             security = @SecurityRequirement(name = "BearerAuth")
     )
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "PDF report generated successfully",
-                    content = @Content(mediaType = "application/pdf")),
-            @ApiResponse(responseCode = "401", description = "Unauthorized"),
-            @ApiResponse(responseCode = "403", description = "Forbidden"),
-            @ApiResponse(responseCode = "404", description = "Order not found")
-    })
+    @ApiResponse(
+            responseCode = "200",
+            description = "PDF report generated successfully",
+            content = @Content(
+                    mediaType = "application/pdf",
+                    schema = @Schema(type = "string", format = "binary")
+            )
+    )
     @PreAuthorize("hasAnyRole('ADMIN','USER')")
     @GetMapping("/{id}/report")
     public ResponseEntity<ByteArrayResource> downloadOrderReport(

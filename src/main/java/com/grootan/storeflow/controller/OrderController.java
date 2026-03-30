@@ -29,7 +29,10 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/orders")
-@Tag(name = "Order Controller", description = "APIs for placing orders, viewing orders, updating order status, generating PDF reports, and exporting CSV data")
+@Tag(
+        name = "Order Controller",
+        description = "APIs for placing orders, viewing orders, updating order status, generating PDF reports, and exporting CSV data"
+)
 public class OrderController {
 
     private final OrderService orderService;
@@ -44,9 +47,14 @@ public class OrderController {
             security = @SecurityRequirement(name = "BearerAuth")
     )
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "201", description = "Order placed successfully",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = OrderDto.class))),
+            @ApiResponse(
+                    responseCode = "201",
+                    description = "Order placed successfully",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = OrderDto.class)
+                    )
+            ),
             @ApiResponse(responseCode = "400", description = "Invalid order request"),
             @ApiResponse(responseCode = "401", description = "Unauthorized"),
             @ApiResponse(responseCode = "409", description = "Insufficient stock")
@@ -64,25 +72,27 @@ public class OrderController {
                             schema = @Schema(implementation = CreateOrderRequest.class),
                             examples = @ExampleObject(value = """
                                     {
-                                     "street": "12 Main Road",
-                                               "city": "Coimbatore",
-                                               "country": "India",
-                                               "postalCode": "641001",
-                                               "items": [
-                                                 {
-                                                   "productId": 1,
-                                                   "quantity": 1
-                                                 }
-                                               ]
+                                      "street": "12 Main Road",
+                                      "city": "Coimbatore",
+                                      "country": "India",
+                                      "postalCode": "641001",
+                                      "items": [
+                                        {
+                                          "productId": 1,
+                                          "quantity": 1
+                                        }
+                                      ]
                                     }
                                     """)
                     )
             )
             @RequestBody CreateOrderRequest request,
-            Principal principal) {
+            Principal principal
+    ) {
         String email = (principal != null && principal.getName() != null)
                 ? principal.getName()
                 : "user@test.com";
+
         return orderService.placeOrder(request, email);
     }
 
@@ -101,10 +111,12 @@ public class OrderController {
     public List<OrderDto> getOrders(
             @Parameter(description = "Set true for admin view to fetch all orders", example = "false")
             @RequestParam(defaultValue = "false") boolean admin,
-            Principal principal) {
+            Principal principal
+    ) {
         String email = (principal != null && principal.getName() != null)
                 ? principal.getName()
                 : "user@test.com";
+
         return orderService.getOrders(email, admin);
     }
 
@@ -114,9 +126,14 @@ public class OrderController {
             security = @SecurityRequirement(name = "BearerAuth")
     )
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Order fetched successfully",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = OrderDto.class))),
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Order fetched successfully",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = OrderDto.class)
+                    )
+            ),
             @ApiResponse(responseCode = "401", description = "Unauthorized"),
             @ApiResponse(responseCode = "403", description = "Forbidden"),
             @ApiResponse(responseCode = "404", description = "Order not found")
@@ -128,10 +145,12 @@ public class OrderController {
             @PathVariable Long id,
             @Parameter(description = "Set true for admin access", example = "false")
             @RequestParam(defaultValue = "false") boolean admin,
-            Principal principal) {
+            Principal principal
+    ) {
         String email = (principal != null && principal.getName() != null)
                 ? principal.getName()
                 : "user@test.com";
+
         return orderService.getOrderById(id, email, admin);
     }
 
@@ -141,9 +160,14 @@ public class OrderController {
             security = @SecurityRequirement(name = "BearerAuth")
     )
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Order status updated successfully",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = OrderDto.class))),
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Order status updated successfully",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = OrderDto.class)
+                    )
+            ),
             @ApiResponse(responseCode = "400", description = "Invalid status transition"),
             @ApiResponse(responseCode = "401", description = "Unauthorized"),
             @ApiResponse(responseCode = "403", description = "Forbidden"),
@@ -168,7 +192,8 @@ public class OrderController {
                                     """)
                     )
             )
-            @RequestBody OrderStatusUpdateRequest request) {
+            @RequestBody OrderStatusUpdateRequest request
+    ) {
         return orderService.updateStatus(id, request.getStatus());
     }
 
@@ -206,7 +231,7 @@ public class OrderController {
                 .contentType(MediaType.APPLICATION_PDF)
                 .header(
                         HttpHeaders.CONTENT_DISPOSITION,
-                        ContentDisposition.inline()
+                        ContentDisposition.attachment()
                                 .filename("order-" + id + ".pdf")
                                 .build()
                                 .toString()
@@ -220,8 +245,11 @@ public class OrderController {
             security = @SecurityRequirement(name = "BearerAuth")
     )
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "CSV exported successfully",
-                    content = @Content(mediaType = "text/csv")),
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "CSV exported successfully",
+                    content = @Content(mediaType = "text/csv")
+            ),
             @ApiResponse(responseCode = "400", description = "Invalid date filter"),
             @ApiResponse(responseCode = "401", description = "Unauthorized"),
             @ApiResponse(responseCode = "403", description = "Forbidden")

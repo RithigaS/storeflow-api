@@ -19,7 +19,8 @@ public class OrderReportPdfServiceImpl implements OrderReportPdfService {
     private static final float START_X = 50;
     private static final float START_Y = 750;
     private static final float LINE_HEIGHT = 20;
-    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+    private static final DateTimeFormatter DATE_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
     @Override
     public byte[] generateOrderReport(Order order) {
@@ -36,26 +37,30 @@ public class OrderReportPdfServiceImpl implements OrderReportPdfService {
                 y -= 10;
 
                 y = writeLine(contentStream, "Order Reference: #" + order.getId(), START_X, y, false);
-                y = writeLine(contentStream, "Customer Name: " + order.getCustomer().getFullName(), START_X, y, false);
+                y = writeLine(contentStream, "Customer Name: " + getCustomerName(order), START_X, y, false);
                 y = writeLine(contentStream, "Order Date: " + formatOrderDate(order), START_X, y, false);
-                y = writeLine(contentStream, "Status: " + order.getStatus().name(), START_X, y, false);
+                y = writeLine(contentStream, "Status: " + getOrderStatus(order), START_X, y, false);
                 y -= 10;
 
                 y = writeLine(contentStream, "Items:", START_X, y, true);
 
-                for (OrderItem item : order.getOrderItems()) {
-                    String line = String.format(
-                            "- %s | Qty: %d | Unit Price: %s | Subtotal: %s",
-                            item.getProduct().getName(),
-                            item.getQuantity(),
-                            item.getUnitPrice(),
-                            item.getSubtotal()
-                    );
-                    y = writeLine(contentStream, line, START_X, y, false);
+                if (order.getOrderItems() != null && !order.getOrderItems().isEmpty()) {
+                    for (OrderItem item : order.getOrderItems()) {
+                        String line = String.format(
+                                "- %s | Qty: %d | Unit Price: %s | Subtotal: %s",
+                                getProductName(item),
+                                item.getQuantity(),
+                                String.valueOf(item.getUnitPrice()),
+                                String.valueOf(item.getSubtotal())
+                        );
+                        y = writeLine(contentStream, line, START_X, y, false);
+                    }
+                } else {
+                    y = writeLine(contentStream, "- No items available", START_X, y, false);
                 }
 
                 y -= 10;
-                writeLine(contentStream, "Order Total: " + order.getTotalAmount(), START_X, y, true);
+                writeLine(contentStream, "Order Total: " + String.valueOf(order.getTotalAmount()), START_X, y, true);
             }
 
             document.save(outputStream);
@@ -76,9 +81,30 @@ public class OrderReportPdfServiceImpl implements OrderReportPdfService {
     }
 
     private String formatOrderDate(Order order) {
-        if (order.getCreatedAt() == null) {
+        if (order == null || order.getCreatedAt() == null) {
             return "N/A";
         }
         return order.getCreatedAt().format(DATE_FORMATTER);
+    }
+
+    private String getCustomerName(Order order) {
+        if (order == null || order.getCustomer() == null || order.getCustomer().getFullName() == null) {
+            return "N/A";
+        }
+        return order.getCustomer().getFullName();
+    }
+
+    private String getOrderStatus(Order order) {
+        if (order == null || order.getStatus() == null) {
+            return "N/A";
+        }
+        return order.getStatus().name();
+    }
+
+    private String getProductName(OrderItem item) {
+        if (item == null || item.getProduct() == null || item.getProduct().getName() == null) {
+            return "Unknown Product";
+        }
+        return item.getProduct().getName();
     }
 }

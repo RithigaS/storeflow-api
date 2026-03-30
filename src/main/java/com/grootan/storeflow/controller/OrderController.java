@@ -212,7 +212,7 @@ public class OrderController {
     )
     @PreAuthorize("hasAnyRole('ADMIN','USER')")
     @GetMapping(value = "/{id}/report", produces = MediaType.APPLICATION_PDF_VALUE)
-    public ResponseEntity<byte[]> downloadOrderReport(
+    public ResponseEntity<ByteArrayResource> downloadOrderReport(
             @Parameter(description = "Order ID", example = "1")
             @PathVariable Long id,
             @Parameter(description = "Set true for admin access", example = "false")
@@ -224,15 +224,19 @@ public class OrderController {
                 : "user@test.com";
 
         byte[] pdf = orderService.generateOrderReport(id, email, admin);
+        ByteArrayResource resource = new ByteArrayResource(pdf);
 
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_PDF)
                 .contentLength(pdf.length)
                 .header(
                         HttpHeaders.CONTENT_DISPOSITION,
-                        "attachment; filename=\"order-" + id + ".pdf\""
+                        ContentDisposition.attachment()
+                                .filename("order-" + id + ".pdf")
+                                .build()
+                                .toString()
                 )
-                .body(pdf);
+                .body(resource);
     }
 
     @Operation(
@@ -266,7 +270,6 @@ public class OrderController {
                 : "user@test.com";
 
         byte[] csv = orderService.exportOrdersAsCsv(from, to, email, admin);
-
         ByteArrayResource resource = new ByteArrayResource(csv);
 
         return ResponseEntity.ok()

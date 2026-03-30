@@ -197,87 +197,87 @@ public class OrderController {
         return orderService.updateStatus(id, request.getStatus());
     }
 
-   @Operation(
-        summary = "Download order PDF report",
-        description = "Generates and downloads a PDF report for a given order",
-        security = @SecurityRequirement(name = "BearerAuth")
-)
-@ApiResponse(
-        responseCode = "200",
-        description = "PDF report generated successfully",
-        content = @Content(
-                mediaType = "application/pdf",
-                schema = @Schema(type = "string", format = "binary")
-        )
-)
-@PreAuthorize("hasAnyRole('ADMIN','USER')")
-@GetMapping(value = "/{id}/report", produces = MediaType.APPLICATION_PDF_VALUE)
-public ResponseEntity<byte[]> downloadOrderReport(
-        @Parameter(description = "Order ID", example = "1")
-        @PathVariable Long id,
-        @Parameter(description = "Set true for admin access", example = "false")
-        @RequestParam(defaultValue = "false") boolean admin,
-        Principal principal
-) {
-    String email = (principal != null && principal.getName() != null)
-            ? principal.getName()
-            : "user@test.com";
-
-    byte[] pdf = orderService.generateOrderReport(id, email, admin);
-
-    return ResponseEntity.ok()
-            .contentType(MediaType.APPLICATION_PDF)
-            .contentLength(pdf.length)
-            .header(
-                    HttpHeaders.CONTENT_DISPOSITION,
-                    "attachment; filename=\"order-" + id + ".pdf\""
+    @Operation(
+            summary = "Download order PDF report",
+            description = "Generates and downloads a PDF report for a given order",
+            security = @SecurityRequirement(name = "BearerAuth")
+    )
+    @ApiResponse(
+            responseCode = "200",
+            description = "PDF report generated successfully",
+            content = @Content(
+                    mediaType = "application/pdf",
+                    schema = @Schema(type = "string", format = "binary")
             )
-            .body(pdf);
+    )
+    @PreAuthorize("hasAnyRole('ADMIN','USER')")
+    @GetMapping(value = "/{id}/report", produces = MediaType.APPLICATION_PDF_VALUE)
+    public ResponseEntity<byte[]> downloadOrderReport(
+            @Parameter(description = "Order ID", example = "1")
+            @PathVariable Long id,
+            @Parameter(description = "Set true for admin access", example = "false")
+            @RequestParam(defaultValue = "false") boolean admin,
+            Principal principal
+    ) {
+        String email = (principal != null && principal.getName() != null)
+                ? principal.getName()
+                : "user@test.com";
+
+        byte[] pdf = orderService.generateOrderReport(id, email, admin);
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .contentLength(pdf.length)
+                .header(
+                        HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"order-" + id + ".pdf\""
+                )
+                .body(pdf);
+    }
+
+    @Operation(
+            summary = "Export orders as CSV",
+            description = "Exports orders as CSV with optional date range filters",
+            security = @SecurityRequirement(name = "BearerAuth")
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "CSV exported successfully",
+                    content = @Content(mediaType = "text/csv")
+            ),
+            @ApiResponse(responseCode = "400", description = "Invalid date filter"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @ApiResponse(responseCode = "403", description = "Forbidden")
+    })
+    @PreAuthorize("hasAnyRole('ADMIN','USER')")
+    @GetMapping(value = "/export", produces = "text/csv")
+    public ResponseEntity<ByteArrayResource> exportOrders(
+            @Parameter(description = "Export orders from this date", example = "2026-03-01")
+            @RequestParam(required = false) LocalDate from,
+            @Parameter(description = "Export orders up to this date", example = "2026-03-28")
+            @RequestParam(required = false) LocalDate to,
+            @Parameter(description = "Set true for admin access", example = "false")
+            @RequestParam(defaultValue = "false") boolean admin,
+            Principal principal
+    ) {
+        String email = (principal != null && principal.getName() != null)
+                ? principal.getName()
+                : "user@test.com";
+
+        byte[] csv = orderService.exportOrdersAsCsv(from, to, email, admin);
+
+        ByteArrayResource resource = new ByteArrayResource(csv);
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("text/csv"))
+                .header(
+                        HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.attachment()
+                                .filename("orders.csv")
+                                .build()
+                                .toString()
+                )
+                .body(resource);
+    }
 }
-
-@Operation(
-        summary = "Export orders as CSV",
-        description = "Exports orders as CSV with optional date range filters",
-        security = @SecurityRequirement(name = "BearerAuth")
-)
-@ApiResponses(value = {
-        @ApiResponse(
-                responseCode = "200",
-                description = "CSV exported successfully",
-                content = @Content(mediaType = "text/csv")
-        ),
-        @ApiResponse(responseCode = "400", description = "Invalid date filter"),
-        @ApiResponse(responseCode = "401", description = "Unauthorized"),
-        @ApiResponse(responseCode = "403", description = "Forbidden")
-})
-@PreAuthorize("hasAnyRole('ADMIN','USER')")
-@GetMapping("/export")
-public ResponseEntity<ByteArrayResource> exportOrders(
-        @Parameter(description = "Export orders from this date", example = "2026-03-01")
-        @RequestParam(required = false) LocalDate from,
-        @Parameter(description = "Export orders up to this date", example = "2026-03-28")
-        @RequestParam(required = false) LocalDate to,
-        @Parameter(description = "Set true for admin access", example = "false")
-        @RequestParam(defaultValue = "false") boolean admin,
-        Principal principal
-) {
-    String email = (principal != null && principal.getName() != null)
-            ? principal.getName()
-            : "user@test.com";
-
-    byte[] csv = orderService.exportOrdersAsCsv(from, to, email, admin);
-
-    ByteArrayResource resource = new ByteArrayResource(csv);
-
-    return ResponseEntity.ok()
-            .contentType(MediaType.parseMediaType("text/csv"))
-            .header(
-                    HttpHeaders.CONTENT_DISPOSITION,
-                    ContentDisposition.attachment()
-                            .filename("orders.csv")
-                            .build()
-                            .toString()
-            )
-            .body(resource);
-}
-
